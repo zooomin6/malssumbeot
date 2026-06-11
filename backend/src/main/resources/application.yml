@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: malssumbeot
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:55432/malssumbeot}
+    username: ${DB_USERNAME:malssumbeot}
+    password: ${DB_PASSWORD:malssumbeot}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+malssumbeot:
+  bible:
+    # bible-import 프로파일에서 사용. TSV 형식: 책약어<TAB>장<TAB>절<TAB>본문
+    import-file: ${BIBLE_IMPORT_FILE:}

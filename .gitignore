@@ -1,0 +1,12 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# Claude Code local state
+.claude/worktrees/
+.claude/settings.local.json
+
+# secrets
+.env
+*.local.yml

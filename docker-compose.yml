@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: malssumbeot-postgres
+    environment:
+      POSTGRES_DB: malssumbeot
+      POSTGRES_USER: malssumbeot
+      POSTGRES_PASSWORD: malssumbeot
+    ports:
+      # 로컬에 설치된 PostgreSQL(5432)과 충돌하지 않도록 55432 사용
+      - "55432:5432"
+    volumes:
+      - malssumbeot-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U malssumbeot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  malssumbeot-pgdata:
