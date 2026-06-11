@@ -16,3 +16,7 @@ malssumbeot:
   bible:
     # bible-import 프로파일에서 사용. TSV 형식: 책약어<TAB>장<TAB>절<TAB>본문
     import-file: ${BIBLE_IMPORT_FILE:}
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    # 의도 분류는 경량 모델 (PRD §6.2 단위 경제성: Haiku/Sonnet 혼용, D-010)
+    classifier-model: claude-haiku-4-5

@@ -10,3 +10,10 @@ spring:
     open-in-view: false
   flyway:
     enabled: false
+
+malssumbeot:
+  bible:
+    import-file: ""
+  anthropic:
+    api-key: test-key
+    classifier-model: claude-haiku-4-5
