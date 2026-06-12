@@ -20,3 +20,6 @@ malssumbeot:
     api-key: ${ANTHROPIC_API_KEY:}
     # 의도 분류는 경량 모델 (PRD §6.2 단위 경제성: Haiku/Sonnet 혼용, D-010)
     classifier-model: claude-haiku-4-5
+  crisis:
+    # 위기 신호 감지 후 세션이 위기 상태로 유지되는 시간 (sticky, D-012)
+    sticky-duration: 30m

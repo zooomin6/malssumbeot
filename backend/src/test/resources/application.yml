@@ -17,3 +17,5 @@ malssumbeot:
   anthropic:
     api-key: test-key
     classifier-model: claude-haiku-4-5
+  crisis:
+    sticky-duration: 30m
