@@ -18,8 +18,12 @@ malssumbeot:
     import-file: ${BIBLE_IMPORT_FILE:}
   anthropic:
     api-key: ${ANTHROPIC_API_KEY:}
-    # 의도 분류는 경량 모델 (PRD §6.2 단위 경제성: Haiku/Sonnet 혼용, D-010)
+    # 모델 라우팅 (PRD §6.2 단위 경제성: Haiku/Sonnet 혼용, D-010·D-013)
     classifier-model: claude-haiku-4-5
+    # 신앙 상담·지식QA·기도문·위기 응답
+    faith-model: claude-sonnet-4-6
+    # 일상 대화·범위 밖 안내
+    casual-model: claude-haiku-4-5
   crisis:
     # 위기 신호 감지 후 세션이 위기 상태로 유지되는 시간 (sticky, D-012)
     sticky-duration: 30m

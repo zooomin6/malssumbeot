@@ -15,4 +15,9 @@ public class BibleConfig {
     public VerseReferenceParser verseReferenceParser(BibleBookCatalog catalog) {
         return new VerseReferenceParser(catalog);
     }
+
+    @Bean
+    public VerseReferenceScanner verseReferenceScanner(VerseReferenceParser parser) {
+        return new VerseReferenceScanner(parser);
+    }
 }

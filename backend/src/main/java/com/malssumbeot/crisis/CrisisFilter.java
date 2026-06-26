@@ -36,4 +36,13 @@ public class CrisisFilter {
         }
         return CrisisCheck.none();
     }
+
+    /**
+     * 패턴 외 경로(예: LLM 의도 분류기의 위기 판정)에서 위기를 확인했을 때
+     * 세션을 위기 상태로 기록한다. 2차 방어선의 판정도 sticky 상태에 반영되어야 한다.
+     */
+    public void recordCrisis(String sessionId) {
+        sessionStore.mark(sessionId);
+        log.info("위기 상태 기록(외부 판정): session={}", sessionId);
+    }
 }

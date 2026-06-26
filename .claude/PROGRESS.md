@@ -1,7 +1,7 @@
 # PROGRESS.md — 말씀벗 진행 상황
 
 > 모든 에이전트 세션은 이 파일을 먼저 읽고, 작업 후 갱신한다.
-> 마지막 갱신: 2026-06-12 (CrisisFilter + 학습 자료 docs/study/)
+> 마지막 갱신: 2026-06-12 (프롬프트 7종 + 오케스트레이터 파이프라인)
 
 ## 현재 마일스톤: M1 — 기반 구축 (1~2주차)
 
@@ -28,6 +28,19 @@
 - [x] 학습 자료 `docs/study/` 01~06 작성 (셋업/스캐폴딩/DB/환각방지/Claude연동/위기감지) —
       매 세션 갱신 루틴화 (CLAUDE.md 루틴 5번, 민규 지시)
 - [x] 테스트 45건 통과
+- [x] 시스템 프롬프트 7종 리소스 탑재 (`resources/prompts/`): 마스터/상담/기도문/지식QA/위기는
+      PRD §5 원문 그대로, 일상대화·범위밖은 신규 초안(사람 승인 대기). PromptRepository·PromptAssembler
+- [x] 모델 라우팅 (`ModelRouter`, D-013): 신앙(상담·QA·기도문·위기)=`claude-sonnet-4-6`,
+      일상·범위밖=`claude-haiku-4-5`
+- [x] ChatOrchestrator 파이프라인 조립: 위기 감지 → 의도 분류 → 프롬프트 분기 → 모델 라우팅 →
+      응답 생성 → 구절 스캔·DB 검증 → 환각 시 1회 재생성. 위기 API 장애 시 결정론적 폴백(109 안내)
+- [x] 구절 검증: VerseReferenceScanner(응답 텍스트→주소 추출) + BibleVerseService 존재 검증
+- [x] 신학 검사(theology-checker) 2회 실행:
+      · 1회차 — 분류 프롬프트 critical(위기 강등) → 코드 수정(D-011)
+      · 2회차 — 신규 프롬프트+파이프라인. **C1 FAIL**: 재생성 후에도 환각 주소가 본문에 남으면
+        '그대로 전송'하는 것이 T8 '거부' 기준 위반 → **코드 수정(D-014)**: 미검증 주소 포함 문장을
+        본문에서 제거(stripSentencesContaining), 비면 폴백 문구. 환각 주소가 사용자 화면에 닿지 않음
+- [x] 테스트 63건 통과
 
 ## 진행 중
 
@@ -37,20 +50,19 @@
 
 ### 백엔드 (Spring Boot — 플랫폼 무관, 그대로 진행)
 1. [ ] 개역한글 성경 텍스트 확보 → 임포터로 적재 (텍스트 소스 확정 블로킹, 아래 참조)
-2. [ ] 시스템 프롬프트 5종 탑재 (기존 4종 + 일상 대화 모드, PRD §5 기준)
-   + 오케스트레이터 파이프라인 조립: CrisisFilter → 의도 분류 → 프롬프트 분기 →
-     응답 생성 → BibleVerseService 구절 검증
-3. [ ] 모델 라우팅: 일상 대화=경량 모델, 신앙 상담·QA=상위 모델
-4. [ ] QA 러너: T1~T8 자동 실행 → theology-checker 판정 → 리포트 저장
-5. [ ] 채팅 REST API + 인증(카카오/구글/Apple 소셜 로그인) + FCM/APNs 푸시
+2. [ ] QA 러너: T1~T8 자동 실행 → theology-checker 판정 → 리포트 저장
+   (ChatOrchestrator를 입력으로, 신학 검사 기준으로 자동 판정)
+3. [ ] 구절 검증 보강 (theology-checker 2회차 WARN): VerseReferenceScanner에 장 단위 인용
+   ("시편 23편", "눅 15장") 패턴 추가 + BibleVerseService 장 존재 검증(chapterCount 기반)
+4. [ ] 채팅 REST API + 인증(카카오/구글/Apple 소셜 로그인) + FCM/APNs 푸시
    - CrisisFilter를 Spring 인터셉터로 배선 (어떤 핸들러도 우회 불가하게)
    - CrisisSessionStore 인메모리 → Redis/DB 이전 검토 (다중 서버 대비)
 
 ### 모바일 (React Native + Expo)
-6. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
-7. [ ] 로그인 플로우 + 대화 이력 동기화
-8. [ ] 오늘의 말씀 푸시 알림 (수신 동의 기반)
-9. [ ] 스토어 제출 준비: 개인정보처리방침, AI 생성 콘텐츠 고지, 신고 버튼
+5. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
+6. [ ] 로그인 플로우 + 대화 이력 동기화
+7. [ ] 오늘의 말씀 푸시 알림 (수신 동의 기반)
+8. [ ] 스토어 제출 준비: 개인정보처리방침, AI 생성 콘텐츠 고지, 신고 버튼
    (앱 내 신고 → theology-checker 1차 분류 큐 연동)
 
 ## 사람 확인 필요 (블로킹)
@@ -72,6 +84,15 @@
 - [ ] **위기 감지 패턴 목록 검토** (`backend/src/main/resources/crisis/crisis-patterns.txt`):
   직접/간접/학대 3분류 정규식. 재현율 우선 원칙이라 오탐 가능 패턴("때리" 등) 포함 —
   추가·삭제할 표현이 있는지 민규 검토 필요. sticky 유지 시간 기본 30분도 함께 확인
+- [ ] **신규 프롬프트 5건 승인** (theology-checker 2회차, 2026-06-12) — 승인 전 미반영:
+  · 일상대화/범위밖 모드 프롬프트 본문 (`daily-chat.txt`, `out-of-scope.txt`) 자체
+  · 두 모드에 위기 escape hatch 1줄 내장 ("위기 신호 시 즉시 위기 프로토콜")
+  · 일상대화에 T2 회복 규칙 추가 (교회 불출석 고백을 정죄 없이 환대, 눅 15장 태도)
+  · 위기 폴백 문구(`CRISIS_FALLBACK_TEXT`) "저도 곁에 있겠습니다" 표현 + 학대 카테고리
+    별도 기관(1366 등) 분기 검토
+  · 기도문 프롬프트에 T7(로또 기도) 경계 문구 ("기복적·도구적 요청 부드럽게 거절")
+- [ ] **환각 폴백 문구 검토** (`HALLUCINATION_FALLBACK_TEXT`, ChatOrchestrator): 사용자에게
+  나가는 문구이므로 어조·내용 확인
 - [ ] Apple Developer($99/년) / Google Play($25) 개발자 계정 등록
 - [ ] 소셜 로그인용 카카오/구글/Apple 개발자 콘솔 앱 등록
 - [ ] 서비스명 최종 확정 (현재 가칭: 말씀벗) — 스토어 등록 전 필수
@@ -91,3 +112,4 @@ CLAUDE.md의 DoD 체크리스트 참조. 전부 충족 시 베타 배포 보고.
 | 2026-06-12 | GitHub 레포 생성(zooomin6/malssumbeot, private) + 첫 커밋·푸시 (main) | 완료 |
 | 2026-06-12 | Anthropic SDK 연동 + 의도 분류기 6분류(Haiku). 신학 검사 실행 → critical 지적(위기 강등 경로) 코드로 수정, 프롬프트 수정안은 승인 대기. 테스트 29건 통과 | 완료 |
 | 2026-06-12 | CrisisFilter(패턴 감지 + sticky 30분) 구현, 학습 자료 docs/study/ 01~06 작성 + 세션 루틴화. 테스트 45건 통과 | 완료 |
+| 2026-06-12 | 프롬프트 7종 탑재 + ModelRouter + ChatOrchestrator 파이프라인(구절 검증·환각 sanitize·위기 폴백). 신학 검사 2회차 C1 FAIL → 코드 수정(D-014). 테스트 63건 통과. 프롬프트 5건 승인 대기 | 완료 |

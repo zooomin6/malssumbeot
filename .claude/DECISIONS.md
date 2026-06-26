@@ -83,6 +83,23 @@
   사람 검토 대상 (PROGRESS "사람 확인 필요").
 - 영향: com.malssumbeot.crisis 패키지, crisis-patterns.txt, REST API 인터셉터 배선(예정)
 
+### D-013. 모델 라우팅: 신앙=Sonnet, 일상·범위밖=Haiku
+- 날짜: 2026-06-12
+- 이유: PRD §6.2 단위 경제성(Haiku/Sonnet 혼용). 신앙 상담·지식QA·기도문·위기는 품질이
+  중요해 상위 모델(claude-sonnet-4-6), 일상 대화·범위 밖 안내는 경량 모델(claude-haiku-4-5).
+  분류기는 D-010대로 Haiku 유지.
+- 영향: ModelRouter, application.yml(faith-model/casual-model), 토큰 비용 통제
+
+### D-014. 환각 구절은 본문에서 제거 후 전송 (재생성으로도 안 잡히면)
+- 날짜: 2026-06-12
+- 이유: theology-checker 2회차 판정 — 재생성 후에도 미검증(존재하지 않는) 구절 주소가
+  응답 본문에 남으면 '그대로 전송'하는 것이 절대 원칙 2 및 T8 '거부' 기준 위반.
+  인용 블록 미첨부만으로는 프로즈에 박힌 환각 주소 노출을 막지 못함.
+- 결정: 재생성 후에도 미검증 주소가 남으면 그 주소가 든 문장을 본문에서 제거
+  (stripSentencesContaining). 제거 후 본문이 비면 결정론적 안전 문구로 대체.
+  미검증 주소는 사용자 본문에서 사라지고 모니터링용 목록(unverifiedReferences)에만 남는다.
+- 영향: ChatOrchestrator.generate. 알려진 한계(장 단위 인용 미스캔)는 다음 작업 #3로 분리.
+
 ## 재검토 요청
 
 (없음)
