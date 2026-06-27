@@ -10,3 +10,7 @@ Thumbs.db
 # secrets
 .env
 *.local.yml
+
+# node (pitch deck 생성 도구)
+node_modules/
+docs/pitch/package-lock.json
