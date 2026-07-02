@@ -1,40 +1,75 @@
 # PROGRESS.md — 말씀벗 진행 상황
 
 > 모든 에이전트 세션은 이 파일을 먼저 읽고, 작업 후 갱신한다.
-> 마지막 갱신: 2026-06-12 (프롬프트 7종 + 오케스트레이터 파이프라인)
+> 마지막 갱신: 2026-06-28 ("완료된 일"+"다음 작업"을 Entity→Repo→DTO→Service→Controller 레이어
+> 하나로 통합, 레이어 안에서 도메인별로 묶음. 내용 삭제 없음)
 
 ## 현재 마일스톤: M1 — 기반 구축 (1~2주차)
 
-## 완료된 일
+## 백엔드 진행 상황 (Entity → Repository → DTO → Service → Controller → Filter/Interceptor)
 
+> 완료(`[x]`)와 다음 작업(`[ ]`)을 레이어 하나로 통합했다. 레이어 안에서는 도메인
+> (bible/crisis/orchestrator/prompt/user/push/QA)별로 묶었다. 기획·문서·인프라·테스트·QA 실행처럼
+> 레이어에 속하지 않는 항목은 맨 아래 "레이어 외 활동"에 모았다. 내용 삭제 없음 — 위치만 재배열.
+
+### Entity
+- [x] [bible] 성경 DB 스키마 (Flyway V1) + 66권 메타데이터 시드 (V2) — PostgreSQL에서 적용 검증 완료
+- [x] [bible] 개역한글 본문 TSV 임포터 (`bible-import` 프로파일) — 소스 확정 즉시 적재 가능
+- [ ] [bible] 개역한글 성경 텍스트 확보 → 임포터로 적재 (텍스트 소스 확정 블로킹, 아래 "사람 확인 필요" 참조)
+- [ ] [user] User — 소셜 로그인(카카오/구글/Apple) 사용자 정보 저장
+- [ ] [crisis] CrisisSessionStore 인메모리 → Redis/DB 이전 검토 (다중 서버 대비)
+
+### Repository
+- [ ] [user] User 엔티티에 대응하는 Repository
+- [ ] [crisis] CrisisSessionStore 영속화용 Repository (위 Entity 항목과 동일 작업 — Redis/DB 이전 검토)
+
+### DTO
+- [ ] [chat] 채팅 요청/응답 DTO 설계
+- [ ] [auth] 로그인 요청/응답 DTO 설계
+
+### Service
+- [x] [bible] BibleVerseService: 구절 주소 파싱(풀네임/약어/범위/장절 표기) → DB 원문 조회 +
+      존재 검증(없는 구절 `VerseNotFoundException` 거부, T8 환각 방지 기반) — 단위 테스트 20건 통과
+- [x] [bible] 구절 검증: VerseReferenceScanner(응답 텍스트→주소 추출) + BibleVerseService 존재 검증
+- [ ] [bible] 구절 검증 보강 (theology-checker 2회차 WARN): VerseReferenceScanner에 장 단위 인용
+      ("시편 23편", "눅 15장") 패턴 추가 + BibleVerseService 장 존재 검증(chapterCount 기반)
+- [x] [crisis] CrisisFilter 구현 (`com.malssumbeot.crisis`) — 결정론적 패턴 감지(직접/간접/학대,
+      공백 변형 대응) + 세션 단위 sticky 위기 상태(기본 30분, D-012). REST API 작업 시
+      인터셉터로 배선 예정. 패턴 목록은 사람 검토 대기 (아래 "사람 확인 필요")
+- [x] [orchestrator] 의도 분류기 6분류 (상담/기도문/지식QA/일상대화/범위밖/위기) — 경량 모델
+      `claude-haiku-4-5` (D-010)
+- [x] [orchestrator] 모델 라우팅 (`ModelRouter`, D-013): 신앙(상담·QA·기도문·위기)=`claude-sonnet-4-6`,
+      일상·범위밖=`claude-haiku-4-5`
+- [x] [orchestrator] ChatOrchestrator 파이프라인 조립: 위기 감지 → 의도 분류 → 프롬프트 분기 →
+      모델 라우팅 → 응답 생성 → 구절 스캔·DB 검증 → 환각 시 1회 재생성. 위기 API 장애 시
+      결정론적 폴백(109 안내)
+- [x] [prompt] 시스템 프롬프트 7종 리소스 탑재 (`resources/prompts/`): 마스터/상담/기도문/지식QA/위기는
+      PRD §5 원문 그대로, 일상대화·범위밖은 신규 초안(사람 승인 대기). PromptRepository·PromptAssembler
+- [ ] [push] FCM/APNs 푸시 발송 연동 (오늘의 말씀 알림 등)
+- [ ] [QA] QA 러너: T1~T8 자동 실행 → theology-checker 판정 → 리포트 저장
+      (ChatOrchestrator를 입력으로, 신학 검사 기준으로 자동 판정)
+
+### Controller
+- [ ] [chat] 채팅 REST API 엔드포인트
+- [ ] [auth] 인증 엔드포인트 (카카오/구글/Apple 소셜 로그인)
+
+### Filter / Interceptor
+- [ ] [crisis] CrisisFilter를 Spring 인터셉터로 배선 (어떤 핸들러도 우회 불가하게)
+
+### 레이어 외 활동 (기획 / 문서 / 인프라 / 테스트 / QA 실행)
 - [x] 제품기획서 v1 작성 (`docs/PRD.md`)
 - [x] CLAUDE.md (프로젝트 헌법) 작성
 - [x] 신학 검사 에이전트 프롬프트 작성 (`agents/theology-checker.md`)
 - [x] 메모리 파일 초기화 (PROGRESS.md, DECISIONS.md)
 - [x] Spring Boot 3.5.15 프로젝트 스캐폴딩 (`backend/`, Maven, Java 17 타겟) — D-009
-- [x] 성경 DB 스키마 (Flyway V1) + 66권 메타데이터 시드 (V2) — PostgreSQL에서 적용 검증 완료
-- [x] BibleVerseService: 구절 주소 파싱(풀네임/약어/범위/장절 표기) → DB 원문 조회 +
-      존재 검증(없는 구절 `VerseNotFoundException` 거부, T8 환각 방지 기반) — 단위 테스트 20건 통과
-- [x] 개역한글 본문 TSV 임포터 (`bible-import` 프로파일) — 소스 확정 즉시 적재 가능
 - [x] 로컬 개발용 PostgreSQL docker-compose (호스트 포트 55432 — 로컬 PG 18과 충돌 회피)
 - [x] Anthropic Java SDK(2.40.1) 연동 — `AnthropicClient` 빈, API 키는 env var(미설정 시 부팅은 가능)
-- [x] 의도 분류기 6분류 (상담/기도문/지식QA/일상대화/범위밖/위기) — 경량 모델 `claude-haiku-4-5` (D-010)
 - [x] 신학 검사 에이전트 실행(분류 프롬프트 검토) → **FAIL(critical)**: 위기 감지 후 형식 위반 시
       상담으로 강등되는 파싱 경로 지적 → "위기" 부분 일치 우선 파싱으로 코드 수정 완료 (D-011).
       프롬프트 본문 수정안 3건은 사람 승인 대기 (아래 "사람 확인 필요")
-- [x] CrisisFilter 구현 (`com.malssumbeot.crisis`) — 결정론적 패턴 감지(직접/간접/학대,
-      공백 변형 대응) + 세션 단위 sticky 위기 상태(기본 30분, D-012). REST API 작업 시
-      인터셉터로 배선 예정. 패턴 목록은 사람 검토 대기 (아래 "사람 확인 필요")
 - [x] 학습 자료 `docs/study/` 01~06 작성 (셋업/스캐폴딩/DB/환각방지/Claude연동/위기감지) —
       매 세션 갱신 루틴화 (CLAUDE.md 루틴 5번, 민규 지시)
 - [x] 테스트 45건 통과
-- [x] 시스템 프롬프트 7종 리소스 탑재 (`resources/prompts/`): 마스터/상담/기도문/지식QA/위기는
-      PRD §5 원문 그대로, 일상대화·범위밖은 신규 초안(사람 승인 대기). PromptRepository·PromptAssembler
-- [x] 모델 라우팅 (`ModelRouter`, D-013): 신앙(상담·QA·기도문·위기)=`claude-sonnet-4-6`,
-      일상·범위밖=`claude-haiku-4-5`
-- [x] ChatOrchestrator 파이프라인 조립: 위기 감지 → 의도 분류 → 프롬프트 분기 → 모델 라우팅 →
-      응답 생성 → 구절 스캔·DB 검증 → 환각 시 1회 재생성. 위기 API 장애 시 결정론적 폴백(109 안내)
-- [x] 구절 검증: VerseReferenceScanner(응답 텍스트→주소 추출) + BibleVerseService 존재 검증
 - [x] 신학 검사(theology-checker) 2회 실행:
       · 1회차 — 분류 프롬프트 critical(위기 강등) → 코드 수정(D-011)
       · 2회차 — 신규 프롬프트+파이프라인. **C1 FAIL**: 재생성 후에도 환각 주소가 본문에 남으면
@@ -46,23 +81,11 @@
 
 - [ ] (없음 — 다음 작업 대기)
 
-## 다음 작업 (우선순위순)
-
-### 백엔드 (Spring Boot — 플랫폼 무관, 그대로 진행)
-1. [ ] 개역한글 성경 텍스트 확보 → 임포터로 적재 (텍스트 소스 확정 블로킹, 아래 참조)
-2. [ ] QA 러너: T1~T8 자동 실행 → theology-checker 판정 → 리포트 저장
-   (ChatOrchestrator를 입력으로, 신학 검사 기준으로 자동 판정)
-3. [ ] 구절 검증 보강 (theology-checker 2회차 WARN): VerseReferenceScanner에 장 단위 인용
-   ("시편 23편", "눅 15장") 패턴 추가 + BibleVerseService 장 존재 검증(chapterCount 기반)
-4. [ ] 채팅 REST API + 인증(카카오/구글/Apple 소셜 로그인) + FCM/APNs 푸시
-   - CrisisFilter를 Spring 인터셉터로 배선 (어떤 핸들러도 우회 불가하게)
-   - CrisisSessionStore 인메모리 → Redis/DB 이전 검토 (다중 서버 대비)
-
-### 모바일 (React Native + Expo)
-5. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
-6. [ ] 로그인 플로우 + 대화 이력 동기화
-7. [ ] 오늘의 말씀 푸시 알림 (수신 동의 기반)
-8. [ ] 스토어 제출 준비: 개인정보처리방침, AI 생성 콘텐츠 고지, 신고 버튼
+## 모바일 다음 작업 (React Native + Expo)
+1. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
+2. [ ] 로그인 플로우 + 대화 이력 동기화
+3. [ ] 오늘의 말씀 푸시 알림 (수신 동의 기반)
+4. [ ] 스토어 제출 준비: 개인정보처리방침, AI 생성 콘텐츠 고지, 신고 버튼
    (앱 내 신고 → theology-checker 1차 분류 큐 연동)
 
 ## 사람 확인 필요 (블로킹)
