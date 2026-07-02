@@ -17,6 +17,7 @@ public class BibleBookCatalog {
         for (BibleBook book : books) {
             aliases.put(normalize(book.getNameKo()), book);
             aliases.put(normalize(book.getAbbrKo()), book);
+            aliases.put(normalize(book.getCode()), book);
         }
         this.byAlias = Map.copyOf(aliases);
     }
