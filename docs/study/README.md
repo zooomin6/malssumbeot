@@ -15,6 +15,7 @@
 | 05 | [Claude API 연동과 의도 분류기](05-claude-api-intent-classifier.md) | Messages API, 모델 라우팅/비용, LLM 출력 파싱의 안전 설계 | AI개발 |
 | 06 | [CrisisFilter — 위기 감지 파이프라인](06-crisis-filter.md) | 결정론적 1차 방어선, sticky 상태, 안전 트레이드오프 | 서버개발 + AI개발 |
 | 07 | [오케스트레이터 — 파이프라인 조립과 환각 차단](07-orchestrator-pipeline.md) | 프롬프트 분기, 모델 라우팅, 구절 검증·재생성·sanitize, 독립 검사 루프 | AI개발 |
+| 08 | [개역한글 본문 확보 — 저작권 조사와 스크래핑](08-bible-text-sourcing.md) | 저작권 실사, 프로토타입 후 이식, DOM 기반 파싱, 데이터 검증 | 서버개발 + 법무 리스크 검토 |
 
 ## 이 프로젝트에서 배울 수 있는 큰 그림
 
