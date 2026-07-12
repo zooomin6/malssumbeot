@@ -59,4 +59,14 @@ public class BibleVerseService {
             return Optional.empty();
         }
     }
+
+    /** 장만 언급한 인용이 실제 책의 장 범위에 있는지 확인한다. */
+    public boolean hasChapter(String rawReference) {
+        try {
+            ChapterReference ref = parser.parseChapter(rawReference);
+            return ref.chapter() <= ref.book().getChapterCount();
+        } catch (InvalidVerseReferenceException e) {
+            return false;
+        }
+    }
 }

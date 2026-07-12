@@ -26,7 +26,7 @@ public class ChatOrchestrator {
     private static final int MAX_TOKENS = 1024;
 
     /**
-     * 위기 응답 생성(API)마저 실패했을 때의 마지막 안전망 — 외부 의존성 없이 항상 동작한다.
+     * 위기 응답의 결정론적 안전망 — 외부 모델에 의존하지 않고 항상 연락처를 전달한다.
      * 연락처는 PRD §5.5 위기 프로토콜 기준. 문구는 사람 승인 대기 (PROGRESS.md).
      */
     static final String CRISIS_FALLBACK_TEXT = """
@@ -68,26 +68,21 @@ public class ChatOrchestrator {
     public ChatReply handle(String sessionId, String userMessage) {
         CrisisCheck check = crisisFilter.check(sessionId, userMessage);
         if (check.crisis()) {
-            return crisisReply(userMessage);
+            return crisisReply();
         }
 
         Intent intent = classifier.classify(userMessage);
         if (intent == Intent.CRISIS) {
             // 2차 방어선(LLM)의 판정도 세션 sticky 상태에 반영한다
             crisisFilter.recordCrisis(sessionId);
-            return crisisReply(userMessage);
+            return crisisReply();
         }
 
         return generate(intent, userMessage);
     }
 
-    private ChatReply crisisReply(String userMessage) {
-        try {
-            return generate(Intent.CRISIS, userMessage);
-        } catch (RuntimeException e) {
-            log.error("위기 응답 생성 실패 — 결정론적 폴백으로 응답", e);
-            return new ChatReply(CRISIS_FALLBACK_TEXT, Intent.CRISIS, true, List.of(), List.of());
-        }
+    private ChatReply crisisReply() {
+        return new ChatReply(CRISIS_FALLBACK_TEXT, Intent.CRISIS, true, List.of(), List.of());
     }
 
     private ChatReply generate(Intent intent, String userMessage) {
@@ -108,41 +103,32 @@ public class ChatOrchestrator {
             verification = verify(text);
         }
 
-        // 재생성 후에도 환각 주소가 남으면, 그 주소가 든 문장을 제거해 사용자 화면에
-        // 절대 닿지 않게 한다 (theology-checker 2026-06-12 C1 FAIL 반영, T8 '거부' 기준).
-        // 모델 출력의 미검증 구절 본문이 그대로 나가는 경로를 차단한다 (절대 원칙 2).
-        if (!verification.unverified().isEmpty()) {
-            log.warn("재생성에도 환각 구절 잔존, 본문에서 제거: {}", verification.unverified());
-            String sanitized = stripSentencesContaining(text, verification.unverified());
-            text = sanitized.isBlank() ? HALLUCINATION_FALLBACK_TEXT : sanitized;
+        // 주소와 본문이 문장 경계를 넘어 분리될 수 있어, 주소가 하나라도 있으면 모델 텍스트 전체를
+        // 보내지 않는다. 검증된 절은 passages의 DB 원문만 별도 전달한다 (D-017).
+        if (!verification.references().isEmpty()) {
+            text = verification.passages().isEmpty() ? HALLUCINATION_FALLBACK_TEXT : "";
         }
 
         return new ChatReply(text, intent, intent == Intent.CRISIS,
                 verification.passages(), verification.unverified());
     }
 
-    /** 미검증 주소를 포함한 문장을 통째로 제거한다 (주소 + 주변에 모델이 쓴 본문까지 함께). */
-    private static String stripSentencesContaining(String text, List<String> references) {
-        StringBuilder sb = new StringBuilder();
-        for (String sentence : text.split("(?<=[.!?。\\n])")) {
-            boolean tainted = references.stream().anyMatch(sentence::contains);
-            if (!tainted) {
-                sb.append(sentence);
-            }
-        }
-        return sb.toString().strip();
-    }
-
     private Verification verify(String text) {
+        List<String> references = scanner.scan(text);
         List<VersePassage> passages = new ArrayList<>();
         List<String> unverified = new ArrayList<>();
-        for (String reference : scanner.scan(text)) {
-            verseService.findPassage(reference)
-                    .ifPresentOrElse(passages::add, () -> unverified.add(reference));
+        for (String reference : references) {
+            var passage = verseService.findPassage(reference);
+            if (passage.isPresent()) {
+                passages.add(passage.get());
+            } else if (!verseService.hasChapter(reference)) {
+                unverified.add(reference);
+            }
         }
-        return new Verification(List.copyOf(passages), List.copyOf(unverified));
+        return new Verification(List.copyOf(references), List.copyOf(passages), List.copyOf(unverified));
     }
 
-    private record Verification(List<VersePassage> passages, List<String> unverified) {
+    private record Verification(List<String> references, List<VersePassage> passages,
+                                List<String> unverified) {
     }
 }

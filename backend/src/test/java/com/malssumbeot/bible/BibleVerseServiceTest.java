@@ -71,4 +71,11 @@ class BibleVerseServiceTest {
         assertThat(service.findPassage("도마복음 1:1")).isEmpty();
         assertThat(service.findPassage("이상한 입력")).isEmpty();
     }
+
+    @Test
+    void 장_단위_인용의_존재를_책_메타데이터로_검증한다() {
+        assertThat(service.hasChapter("시편 23편")).isTrue();
+        assertThat(service.hasChapter("빌립보서 99장")).isFalse();
+        assertThat(service.hasChapter("도마복음 1장")).isFalse();
+    }
 }

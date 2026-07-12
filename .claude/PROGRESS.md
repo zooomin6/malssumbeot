@@ -34,8 +34,12 @@
 - [x] [bible] BibleVerseService: 구절 주소 파싱(풀네임/약어/범위/장절 표기) → DB 원문 조회 +
       존재 검증(없는 구절 `VerseNotFoundException` 거부, T8 환각 방지 기반) — 단위 테스트 20건 통과
 - [x] [bible] 구절 검증: VerseReferenceScanner(응답 텍스트→주소 추출) + BibleVerseService 존재 검증
-- [ ] [bible] 구절 검증 보강 (theology-checker 2회차 WARN): VerseReferenceScanner에 장 단위 인용
-      ("시편 23편", "눅 15장") 패턴 추가 + BibleVerseService 장 존재 검증(chapterCount 기반)
+- [x] [bible] 구절 검증 보강 (theology-checker 2회차 WARN): VerseReferenceScanner에 장 단위 인용
+      ("시편 23편", "눅 15장") 패턴 추가 + BibleVerseService 장 존재 검증(chapterCount 기반),
+      존재하지 않는 장은 기존 환각 처리와 동일하게 재생성·제거. 모델이 성경 주소와 함께 생성한
+      본문·풀이는 검증 여부와 무관하게 제거하고, DB 원문 `VersePassage`만 별도 전달 (D-017).
+      위기 응답은 고정 연락처 안내로 결정론 처리, 영어 장절 표기도 환각 후보로 감지.
+      테스트 추가 후 전체 76건 통과
 - [x] [crisis] CrisisFilter 구현 (`com.malssumbeot.crisis`) — 결정론적 패턴 감지(직접/간접/학대,
       공백 변형 대응) + 세션 단위 sticky 위기 상태(기본 30분, D-012). REST API 작업 시
       인터셉터로 배선 예정. 패턴 목록은 사람 검토 대기 (아래 "사람 확인 필요")
@@ -79,6 +83,9 @@
         '그대로 전송'하는 것이 T8 '거부' 기준 위반 → **코드 수정(D-014)**: 미검증 주소 포함 문장을
         본문에서 제거(stripSentencesContaining), 비면 폴백 문구. 환각 주소가 사용자 화면에 닿지 않음
 - [x] 테스트 63건 통과
+- [x] 테스트 73건 통과
+- [x] 테스트 74건 통과
+- [x] 테스트 76건 통과
 
 ## 진행 중
 
@@ -140,3 +147,4 @@ CLAUDE.md의 DoD 체크리스트 참조. 전부 충족 시 베타 배포 보고.
 | 2026-06-12 | CrisisFilter(패턴 감지 + sticky 30분) 구현, 학습 자료 docs/study/ 01~06 작성 + 세션 루틴화. 테스트 45건 통과 | 완료 |
 | 2026-06-12 | 프롬프트 7종 탑재 + ModelRouter + ChatOrchestrator 파이프라인(구절 검증·환각 sanitize·위기 폴백). 신학 검사 2회차 C1 FAIL → 코드 수정(D-014). 테스트 63건 통과. 프롬프트 5건 승인 대기 | 완료 |
 | 2026-07-02 | 개역한글 텍스트 소스 확정(대한성서공회 공식 성경읽기 페이지, D-016) + `BibleTextScraper`(Jsoup) 신규 작성 → TSV 생성 → 기존 임포터로 31,102절 DB 적재, 검증 완료. `BibleBookCatalog`에 영문 코드 해석 추가. 브랜치 `feature/bible-text-import` | 완료 |
+| 2026-07-12 | 장 단위 인용 검증 보강: `시편 23편`·`눅 15장` 스캔 및 chapterCount 검증 추가. 존재하지 않는 장은 재생성·제거 경로로 처리. 모델이 성경 주소와 함께 생성한 본문·풀이는 모두 제거하고 DB 원문만 별도 전달(D-017). 위기는 고정 연락처 안내로 결정론 처리, 영어 장절도 환각 후보로 감지. 테스트 76건 통과. 브랜치 `feature/verse-reference-validation` | 완료 |

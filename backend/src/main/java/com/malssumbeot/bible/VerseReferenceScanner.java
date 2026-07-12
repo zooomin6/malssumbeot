@@ -10,13 +10,21 @@ import java.util.regex.Pattern;
 /**
  * 모델 응답 텍스트에서 구절 주소 후보를 찾아낸다 (구절 검증 파이프라인의 입력).
  *
- * 책 이름이 카탈로그에서 해석되는 후보만 반환한다 — "오후 3:30" 같은
- * 시각 표현은 책 이름 해석에 실패하므로 자연히 제외된다.
+ * 한글 후보는 책 이름이 카탈로그에서 해석되는 경우만 반환한다. 영어 장:절 표기는
+ * DB 책 이름으로 해석하지 못해도 안전상 환각 후보로 반환한다.
  */
 public class VerseReferenceScanner {
 
-    private static final Pattern CANDIDATE = Pattern.compile(
-            "([가-힣]{1,10})\\s?(\\d{1,3})\\s*:\\s*(\\d{1,3})(?:\\s*[-~]\\s*(\\d{1,3}))?");
+    private static final String KOREAN_REFERENCE =
+            "[가-힣]{1,10}\\s?\\d{1,3}(?:\\s*:\\s*\\d{1,3}(?:\\s*[-~]\\s*\\d{1,3})?"
+                    + "|\\s*장\\s*\\d{1,3}(?:\\s*[-~]\\s*\\d{1,3})?\\s*절?"
+                    + "|\\s*(?:장|편))";
+    private static final String ENGLISH_REFERENCE =
+            "(?!(?i:am|pm)\\s)(?:[1-3]\\s*)?[A-Za-z]{2,20}\\s+\\d{1,3}\\s*:\\s*\\d{1,3}"
+                    + "(?:\\s*[-~]\\s*\\d{1,3})?";
+    private static final Pattern CANDIDATE =
+            Pattern.compile("(?:" + KOREAN_REFERENCE + "|" + ENGLISH_REFERENCE + ")");
+    private static final Pattern ENGLISH_CANDIDATE = Pattern.compile("^" + ENGLISH_REFERENCE + "$");
 
     private final VerseReferenceParser parser;
 
@@ -33,8 +41,16 @@ public class VerseReferenceScanner {
         Matcher matcher = CANDIDATE.matcher(text);
         while (matcher.find()) {
             String candidate = matcher.group().strip();
+            if (ENGLISH_CANDIDATE.matcher(candidate).matches()) {
+                found.add(candidate);
+                continue;
+            }
             try {
-                parser.parse(candidate);
+                if (candidate.endsWith("장") || candidate.endsWith("편")) {
+                    parser.parseChapter(candidate);
+                } else {
+                    parser.parse(candidate);
+                }
                 found.add(candidate);
             } catch (InvalidVerseReferenceException e) {
                 // 책 이름이 아니거나 형식이 아님 — 구절 주소로 취급하지 않는다

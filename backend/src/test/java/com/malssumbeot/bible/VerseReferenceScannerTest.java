@@ -17,9 +17,23 @@ class VerseReferenceScannerTest {
     }
 
     @Test
+    void 텍스트에서_장_단위_인용을_찾는다() {
+        String text = "시편 23편을 읽고, 눅 15장도 함께 살펴보세요.";
+
+        assertThat(scanner.scan(text)).containsExactly("시편 23편", "눅 15장");
+    }
+
+    @Test
     void 시각_표현은_구절로_오인하지_않는다() {
         assertThat(scanner.scan("내일 오후 3:30에 만나요")).isEmpty();
         assertThat(scanner.scan("점수는 12:7이었어요")).isEmpty();
+        assertThat(scanner.scan("PM 3:30에 만나요")).isEmpty();
+    }
+
+    @Test
+    void 영어_장절_표기는_환각_후보로_반환한다() {
+        assertThat(scanner.scan("John 3:16을 인용합니다.")).containsExactly("John 3:16");
+        assertThat(scanner.scan("Jn 3:16도 함께 보세요.")).containsExactly("Jn 3:16");
     }
 
     @Test
