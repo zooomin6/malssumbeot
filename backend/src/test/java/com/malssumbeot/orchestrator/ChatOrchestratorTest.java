@@ -51,25 +51,21 @@ class ChatOrchestratorTest {
 
     @Test
     void 위기_메시지는_분류를_거치지_않고_위기_프로토콜로_간다() {
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), contains("최우선"), anyString()))
-                .thenReturn("많이 힘드셨겠어요. 자살예방 상담전화 109로 지금 연락할 수 있어요.");
-
         ChatReply reply = orchestrator.handle("s1", "그냥 죽고 싶어");
 
         assertThat(reply.crisis()).isTrue();
         assertThat(reply.intent()).isEqualTo(Intent.CRISIS);
-        verifyNoInteractions(classifier);
+        assertThat(reply.text()).contains("109").contains("1577-0199");
+        verifyNoInteractions(classifier, claudeChat);
     }
 
     @Test
-    void 위기_응답_생성이_실패하면_결정론적_폴백을_보낸다() {
-        when(claudeChat.complete(anyString(), anyInt(), anyString(), anyString()))
-                .thenThrow(new RuntimeException("API down"));
-
+    void 위기_응답은_모델_호출_없이_결정론적_안내를_보낸다() {
         ChatReply reply = orchestrator.handle("s1", "죽고 싶어");
 
         assertThat(reply.crisis()).isTrue();
         assertThat(reply.text()).contains("109").contains("1577-0199");
+        verifyNoInteractions(claudeChat);
     }
 
     @Test
@@ -103,6 +99,66 @@ class ChatOrchestratorTest {
         assertThat(reply.passages()).hasSize(1);
         assertThat(reply.passages().get(0).reference()).isEqualTo("빌립보서 4:6-7");
         assertThat(reply.unverifiedReferences()).isEmpty();
+    }
+
+    @Test
+    void 검증된_절과_함께_모델이_생성한_본문은_제거하고_DB_원문만_첨부한다() {
+        when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
+        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("빌립보서 4:6-7은 가짜 본문이라고 말합니다. 마음을 조금 쉬게 해주세요.");
+        when(verseRepository.findByBookIdAndChapterAndVerseBetweenOrderByVerseAsc(50, 4, 6, 7))
+                .thenReturn(List.of(
+                        new BibleVerse(50, 4, 6, "(테스트 본문 6절)"),
+                        new BibleVerse(50, 4, 7, "(테스트 본문 7절)")));
+
+        ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
+
+        assertThat(reply.text()).isEmpty();
+        assertThat(reply.passages()).hasSize(1);
+    }
+
+    @Test
+    void 존재하는_장_단위_인용과_모델_본문은_함께_제거한다() {
+        when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
+        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("시편 23편은 가짜 본문이라고 말합니다. 지금 마음을 천천히 돌봐주세요.");
+
+        ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
+
+        assertThat(reply.unverifiedReferences()).isEmpty();
+        assertThat(reply.passages()).isEmpty();
+        assertThat(reply.text()).isEqualTo(ChatOrchestrator.HALLUCINATION_FALLBACK_TEXT);
+        assertThat(reply.text()).doesNotContain("시편 23편").doesNotContain("가짜 본문");
+        verify(claudeChat, times(1)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
+    }
+
+    @Test
+    void 존재하지_않는_장_단위_인용은_재생성한다() {
+        when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
+        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("요한복음 99장을 읽어보세요.")
+                .thenReturn("함께 기도하는 마음으로 곁에 있을게요.");
+
+        ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
+
+        assertThat(reply.unverifiedReferences()).isEmpty();
+        assertThat(reply.text()).doesNotContain("요한복음 99장");
+        verify(claudeChat, times(2)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
+        verify(claudeChat).complete(eq(FAITH_MODEL), anyInt(), anyString(), contains("요한복음 99장"));
+    }
+
+    @Test
+    void 영어_성경_주소는_검증되지_않으면_재생성한다() {
+        when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
+        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("John 3:16은 가짜 본문이라고 말합니다.")
+                .thenReturn("함께 마음을 돌봐주세요.");
+
+        ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
+
+        assertThat(reply.text()).doesNotContain("John 3:16").doesNotContain("가짜 본문");
+        verify(claudeChat, times(2)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
+        verify(claudeChat).complete(eq(FAITH_MODEL), anyInt(), anyString(), contains("John 3:16"));
     }
 
     @Test

@@ -48,6 +48,17 @@ class VerseReferenceParserTest {
     }
 
     @Test
+    void 장_단위_인용을_해석한다() {
+        ChapterReference psalm = parser.parseChapter("시편 23편");
+        ChapterReference luke = parser.parseChapter("눅 15장");
+
+        assertThat(psalm.book()).isEqualTo(BibleTestFixtures.PSALMS);
+        assertThat(psalm.chapter()).isEqualTo(23);
+        assertThat(luke.book()).isEqualTo(BibleTestFixtures.LUKE);
+        assertThat(luke.chapter()).isEqualTo(15);
+    }
+
+    @Test
     void 공백이_섞인_입력을_허용한다() {
         VerseReference ref = parser.parse("  시편  23 : 1  ");
 
