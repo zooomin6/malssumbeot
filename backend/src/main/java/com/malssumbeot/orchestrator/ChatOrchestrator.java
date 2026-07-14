@@ -5,6 +5,7 @@ import com.malssumbeot.bible.VersePassage;
 import com.malssumbeot.bible.VerseReferenceScanner;
 import com.malssumbeot.crisis.CrisisCheck;
 import com.malssumbeot.crisis.CrisisFilter;
+import com.malssumbeot.crisis.CrisisSignal;
 import com.malssumbeot.prompt.PromptAssembler;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,13 +28,29 @@ public class ChatOrchestrator {
 
     /**
      * 위기 응답의 결정론적 안전망 — 외부 모델에 의존하지 않고 항상 연락처를 전달한다.
-     * 연락처는 PRD §5.5 위기 프로토콜 기준. 문구는 사람 승인 대기 (PROGRESS.md).
+     * 카테고리별로 분리한다: '곁에 믿을 만한 사람에게 알리라'는 권유는 자살·자해 신호에만 적절하고,
+     * 학대(곁의 사람이 가해자일 수 있음)나 카테고리 불명확 시엔 넣지 않는다.
+     * 연락처는 PRD §5.5 기준. 문구는 사람 승인 대기 (PROGRESS.md).
      */
-    static final String CRISIS_FALLBACK_TEXT = """
-            많이 힘드셨겠어요. 혼자 견디지 않으셔도 됩니다.
-            지금 바로 이야기를 들어줄 수 있는 곳이 있어요.
+    static final String CRISIS_SELF_HARM_TEXT = """
+            그런 말이 나올 만큼 오늘 많이 힘드셨나 봐요. 그 마음, 혼자 짊어지지 않으셔도 돼요.
+            저는 여기서 계속 이야기 들을게요. 그리고 혹시 곁에 믿을 만한 사람이 있다면, 그 사람에게도 마음을 조금 꺼내 보세요. 혼자보다 함께일 때 견디기가 조금은 더 수월해지거든요.
+            지금이든 더 힘든 순간이 오든, 언제든 기댈 수 있는 곳이 있어요.
             · 자살예방 상담전화 109 (24시간)
             · 정신건강 위기상담 1577-0199
+            전문적인 도움과 신앙은 함께 갈 수 있어요. 저도 곁에 있겠습니다.""";
+
+    /**
+     * 학대·카테고리 불명확·2차(분류기) 위기의 기본 문구. '믿을 만한 사람' 권유 없음.
+     * 학대 전용 문구·기관 번호(1366·아동보호전문기관 등)와 진술 데이터 보관 정책은
+     * 법률 검토 대기 항목이라, 현재는 안전한 잠정본이다 (PROGRESS.md "사람 확인 필요").
+     */
+    static final String CRISIS_DEFAULT_TEXT = """
+            그런 말이 나올 만큼 많이 힘드셨나 봐요. 그 마음, 혼자 짊어지지 않으셔도 돼요.
+            저는 여기서 계속 이야기 들을게요. 지금이든 더 힘든 순간이 오든, 언제든 기댈 수 있는 곳이 있어요.
+            · 자살예방 상담전화 109 (24시간)
+            · 정신건강 위기상담 1577-0199
+            · 지금 위험한 상황이라면 112
             전문적인 도움과 신앙은 함께 갈 수 있어요. 저도 곁에 있겠습니다.""";
 
     /**
@@ -68,21 +85,26 @@ public class ChatOrchestrator {
     public ChatReply handle(String sessionId, String userMessage) {
         CrisisCheck check = crisisFilter.check(sessionId, userMessage);
         if (check.crisis()) {
-            return crisisReply();
+            // 위기 카테고리(자살자해/학대)에 따라 응답을 분기한다. sticky는 신호가 없어 기본 문구로 간다.
+            return crisisReply(check.signal().map(CrisisSignal::category).orElse(null));
         }
 
         Intent intent = classifier.classify(userMessage);
         if (intent == Intent.CRISIS) {
-            // 2차 방어선(LLM)의 판정도 세션 sticky 상태에 반영한다
+            // 2차 방어선(LLM)의 판정도 세션 sticky 상태에 반영한다. 카테고리를 알 수 없어 기본 문구로 간다.
             crisisFilter.recordCrisis(sessionId);
-            return crisisReply();
+            return crisisReply(null);
         }
 
         return generate(intent, userMessage);
     }
 
-    private ChatReply crisisReply() {
-        return new ChatReply(CRISIS_FALLBACK_TEXT, Intent.CRISIS, true, List.of(), List.of());
+    private ChatReply crisisReply(String category) {
+        // '믿을 만한 사람' 권유는 확실한 자살·자해 신호일 때만. 학대·불명확·2차 판정은 기본 문구.
+        String text = category != null && category.startsWith("자살자해")
+                ? CRISIS_SELF_HARM_TEXT
+                : CRISIS_DEFAULT_TEXT;
+        return new ChatReply(text, Intent.CRISIS, true, List.of(), List.of());
     }
 
     private ChatReply generate(Intent intent, String userMessage) {
