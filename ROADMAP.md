@@ -19,12 +19,12 @@
 > 지금껏 실제 API를 한 번도 안 불렀고, 프롬프트·위기패턴은 사람 승인 전이라 확정 불가.
 > 여기부터 풀어야 뒤가 진짜로 진행된다.
 
-- [ ] [민규] `ANTHROPIC_API_KEY` 발급 → 환경변수 설정 (외부 키 = 사람 승인 항목)
+- [x] [민규] `ANTHROPIC_API_KEY` 발급 → 환경변수 설정 (외부 키 = 사람 승인 항목) — 2026-07-14 완료. 창별 세션이라 새 터미널에선 재-export 필요
 - [ ] [민규] 의도 분류 프롬프트(`intent-classifier.txt`) 승인
 - [ ] [민규] 신규 프롬프트 5건 승인 (daily-chat/out-of-scope 본문, 위기 escape hatch, T2 회복규칙, T7 경계)
 - [ ] [민규] 폴백 문구 2종 검토 (`CRISIS_FALLBACK_TEXT`, `HALLUCINATION_FALLBACK_TEXT`)
 - [ ] [민규] 위기 감지 패턴(`crisis-patterns.txt`) + sticky 30분 검토
-- [ ] [검증] 실제 Claude 호출 스모크 테스트 1회 (분류기 실호출로 파이프라인 첫 검증)
+- [x] [검증] 실제 Claude 호출 스모크 테스트 1회 — 2026-07-14 curl로 claude-haiku-4-5 직접 호출 성공(결제 정상). 앱 통해 분류기 실호출 검증은 Phase 1 앱 실행 시
 - [ ] [검증] 성경 본문이 대상 DB에 적재돼 있는지 확인 (없으면 `bible-import` 프로파일 재실행)
 
 ## Phase 1 — 백엔드 HTTP 계층 (두뇌에 문 달기) · M1 실질 마무리
