@@ -1,0 +1,76 @@
+# ROADMAP.md — 말씀벗 실행 로드맵
+
+> 순차 체크리스트. 위에서부터 하나씩 `[x]`로 지워가며 진행한다.
+> 상세 진행 기록은 `.claude/PROGRESS.md`, 결정 근거는 `.claude/DECISIONS.md` 참조.
+> MVP 완료 기준(게이트)은 `.claude/CLAUDE.md`의 Definition of Done.
+
+**범례**
+`[민규]` 사람만 가능 (승인·계정·키) · `[코드]` 코드 작업 (민규+claude) ·
+`[검증]` 동작 확인 · 🚩DoD Definition of Done 게이트 항목
+
+**현재 상태 (2026-07-14, 실제 코드 기준)**
+코어 파이프라인(bible·crisis·orchestrator·prompt)과 단위 테스트 76건은 완성. 하지만 HTTP
+계층(컨트롤러·DTO·인터셉터), 사용자/로그인, 푸시, QA 자동러너, 모바일 앱은 전부 미구현.
+실제 Claude 호출은 아직 한 번도 안 함(API 키 미설정). MVP 목표는 RN 앱(D-002).
+
+---
+
+## Phase 0 — 실제로 도는지 확인 + 승인 잠금 해제
+> 지금껏 실제 API를 한 번도 안 불렀고, 프롬프트·위기패턴은 사람 승인 전이라 확정 불가.
+> 여기부터 풀어야 뒤가 진짜로 진행된다.
+
+- [ ] [민규] `ANTHROPIC_API_KEY` 발급 → 환경변수 설정 (외부 키 = 사람 승인 항목)
+- [ ] [민규] 의도 분류 프롬프트(`intent-classifier.txt`) 승인
+- [ ] [민규] 신규 프롬프트 5건 승인 (daily-chat/out-of-scope 본문, 위기 escape hatch, T2 회복규칙, T7 경계)
+- [ ] [민규] 폴백 문구 2종 검토 (`CRISIS_FALLBACK_TEXT`, `HALLUCINATION_FALLBACK_TEXT`)
+- [ ] [민규] 위기 감지 패턴(`crisis-patterns.txt`) + sticky 30분 검토
+- [ ] [검증] 실제 Claude 호출 스모크 테스트 1회 (분류기 실호출로 파이프라인 첫 검증)
+- [ ] [검증] 성경 본문이 대상 DB에 적재돼 있는지 확인 (없으면 `bible-import` 프로파일 재실행)
+
+## Phase 1 — 백엔드 HTTP 계층 (두뇌에 문 달기) · M1 실질 마무리
+> `ChatOrchestrator.handle()`을 밖에서 부를 수 있게 만든다. 지금 가장 큰 공백.
+
+- [ ] [코드] 채팅 요청/응답 DTO 설계 (`ChatReply`를 API 응답 형태로 노출)
+- [ ] [코드] 채팅 REST API 컨트롤러 (예: `POST /api/chat`) → `ChatOrchestrator.handle` 연결
+- [ ] [코드] `sessionId` 전달 방식 확정 (헤더 vs 바디) — 위기 sticky가 세션 단위라 필수
+- [ ] [코드] `CrisisFilter`를 Spring 인터셉터(`HandlerInterceptor`)로 배선 — 우회 불가 (D-004)
+- [ ] [코드] 새 컨트롤러 패키지 명명 정리 (`webhook`→`api`, CLAUDE.md 컨벤션 갱신)
+- [ ] [검증] curl/통합테스트 E2E: 일반 대화 / 위기 3종 / 구절 인용 / 환각 거부
+
+## Phase 2 — 인증 & 사용자 (앱 로그인 기반)
+> RN 앱 로그인과 대화 이력 동기화의 토대.
+
+- [ ] [민규] 카카오/구글/Apple 개발자 콘솔 앱 등록 (클라이언트 ID/시크릿)
+- [ ] [코드] `User` 엔티티 + Flyway `V3` 마이그레이션 + `UserRepository`
+- [ ] [코드] 소셜 로그인(OAuth) 인증 엔드포인트 + 인증 DTO + 토큰 발급
+- [ ] [코드] 대화 이력 저장 설계 (엔티티 + 마이그레이션) — 앱 동기화용
+- [ ] [코드] `CrisisSessionStore` 인메모리 → Redis/DB 이전 검토 (영속화·다중 서버)
+
+## Phase 3 — 모바일 앱 (React Native + Expo)
+> 실제 제품 표면. DoD의 E2E 대상.
+
+- [ ] [민규] RN 담당자 확정 (친구 협업 vs 직접 개발)
+- [ ] [코드] Expo 프로젝트 스캐폴딩
+- [ ] [코드] 채팅 UI (메시지 리스트 + 성경 구절 인용 블록 구분 렌더링)
+- [ ] [코드] 로그인 플로우 + 대화 이력 동기화
+- [ ] [검증] 🚩DoD 로그인→대화→구절 렌더링 E2E 성공 (Android/iOS 양쪽)
+
+## Phase 4 — 안전·품질 검증 (출시 게이트)
+> CLAUDE.md Definition of Done의 하드 요구. 여기 통과 없이는 출시 없음.
+
+- [ ] [코드] QA 러너: T1~T8 자동 실행 → theology-checker 판정 → 리포트 저장
+- [ ] [검증] 🚩DoD 위기 시나리오 3종(직접/간접/혼합) 프로토콜 발동 확인
+- [ ] [검증] 🚩DoD 환각 테스트: 존재하지 않는 구절 10건 전부 거부
+- [ ] [검증] 🚩DoD 범위 밖 요청(코딩·숙제 등) 5건 정중 안내
+- [ ] [검증] 🚩DoD T1~T8 QA 체크리스트 전부 통과 (theology-checker 기준)
+
+## Phase 5 — 푸시 & 스토어 제출
+> 출시 마무리. DoD의 스토어 항목.
+
+- [ ] [민규] Apple Developer($99/년) / Google Play($25) 계정 등록
+- [ ] [민규] 서비스명 최종 확정 (현재 가칭: 말씀벗)
+- [ ] [코드] FCM/APNs 푸시 연동 (오늘의 말씀, 수신 동의 기반)
+- [ ] [코드] 앱 내 신고 기능 (신고 → theology-checker 1차 분류 큐)
+- [ ] [민규] 개인정보처리방침 + AI 생성 콘텐츠 고지 문안
+- [ ] [민규] 성명표시권 표기 "성경전서 개역한글판, 대한성서공회" (앱 설정/정보 화면, D-016)
+- [ ] [검증] 🚩DoD 스토어 제출물 준비 완료 (개인정보처리방침·AI 고지·신고 기능·스크린샷)
