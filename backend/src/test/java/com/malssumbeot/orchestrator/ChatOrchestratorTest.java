@@ -38,7 +38,8 @@ class ChatOrchestratorTest {
 
     private final VerseReferenceParser parser = new VerseReferenceParser(BibleTestFixtures.catalog());
     private final CrisisFilter crisisFilter = new CrisisFilter(
-            new CrisisDetector(List.of("자살자해직접\t죽고싶", "학대\t폭행")),
+            new CrisisDetector(List.of("제3자위기\t(친구|동생).{0,10}(죽고싶|자해)",
+                    "자살자해직접\t죽고싶", "학대\t폭행")),
             new CrisisSessionStore(Duration.ofMinutes(30), Clock.systemUTC()));
 
     private final ChatOrchestrator orchestrator = new ChatOrchestrator(
@@ -97,6 +98,17 @@ class ChatOrchestratorTest {
         ChatReply reply = orchestrator.handle("s1", "집에서 폭행을 당하고 있어요");
 
         assertThat(reply.crisis()).isTrue();
+        assertThat(reply.text()).doesNotContain("믿을 만한 사람");
+        assertThat(reply.text()).contains("112").contains("1366");
+        verifyNoInteractions(claudeChat);
+    }
+
+    @Test
+    void 제3자_위기는_당사자용이_아닌_제3자용_문구로_안내한다() {
+        ChatReply reply = orchestrator.handle("s1", "친구가 죽고 싶대요");
+
+        assertThat(reply.crisis()).isTrue();
+        assertThat(reply.text()).contains("가까운 분");
         assertThat(reply.text()).doesNotContain("믿을 만한 사람");
         assertThat(reply.text()).contains("112");
         verifyNoInteractions(claudeChat);
