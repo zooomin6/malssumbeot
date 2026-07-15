@@ -54,6 +54,26 @@ public class ChatOrchestrator {
             전문적인 도움과 신앙은 함께 갈 수 있어요. 저도 곁에 있겠습니다.""";
 
     /**
+     * 제3자(친구·가족 등)가 위기에 처했다는 걱정·도움 요청에 대한 응답. 당사자가 아니므로 1인칭 위로가
+     * 아니라, 걱정하는 사람을 향한 안내로 쓴다. (문구는 사람 승인 대기)
+     */
+    static final String CRISIS_THIRD_PARTY_TEXT = """
+            가까운 분이 그런 말을 해서 많이 걱정되고 당황스러우셨겠어요.
+            그분이 지금 당장 자신을 해칠 것 같거나 이미 위험한 행동을 하고 있다면, 혼자 두지 말고 112 또는 119에 도움을 요청해 주세요.
+            자살예방 상담전화 109에 함께 연락해 상황을 설명하는 것도 도움이 돼요.
+            이 상황을 혼자 감당하거나 책임지려 하지 않으셔도 됩니다.""";
+
+    /**
+     * 학대 신호에 대한 응답. '믿을 만한 사람' 권유 없이(곁의 사람이 가해자일 수 있음), 안전 우선 + 적절한
+     * 기관 안내. 번호·문구는 사람 승인 및 법률 검토 대상 (PROGRESS.md). 진술 데이터 보관 약속은 하지 않는다.
+     */
+    static final String CRISIS_ABUSE_TEXT = """
+            그런 일을 겪고 계셨다면, 그건 당신의 잘못이 아니에요.
+            지금 위험한 상황이라면 안전한 곳으로 피하고 112 또는 119에 연락해 주세요.
+            여성폭력·가정폭력은 1366, 청소년이라면 1388에서 24시간 상담과 지원을 받을 수 있어요.
+            가해자에게 알려지거나 더 위험해질 수 있는 행동은 피하고, 지금 가장 안전한 방법을 먼저 선택해 주세요.""";
+
+    /**
      * 환각 구절을 모두 걷어낸 뒤 남은 본문이 없을 때의 안전 문구.
      * 잘못된 구절을 전하지 않는 것을 우선하며, 사용자를 정죄하지 않는다. 문구는 사람 승인 대기.
      */
@@ -100,11 +120,27 @@ public class ChatOrchestrator {
     }
 
     private ChatReply crisisReply(String category) {
-        // '믿을 만한 사람' 권유는 확실한 자살·자해 신호일 때만. 학대·불명확·2차 판정은 기본 문구.
-        String text = category != null && category.startsWith("자살자해")
-                ? CRISIS_SELF_HARM_TEXT
-                : CRISIS_DEFAULT_TEXT;
-        return new ChatReply(text, Intent.CRISIS, true, List.of(), List.of());
+        return new ChatReply(crisisText(category), Intent.CRISIS, true, List.of(), List.of());
+    }
+
+    /**
+     * 위기 카테고리별 응답 선택. '믿을 만한 사람' 권유는 확실한 자살·자해(본인) 신호일 때만 나간다.
+     * 제3자 위기·학대·불명확은 각각 별도 문구로, 위험할 수 있는 권유가 섞이지 않게 한다.
+     */
+    private static String crisisText(String category) {
+        if (category == null) {
+            return CRISIS_DEFAULT_TEXT;
+        }
+        if (category.startsWith("제3자")) {
+            return CRISIS_THIRD_PARTY_TEXT;
+        }
+        if (category.startsWith("학대")) {
+            return CRISIS_ABUSE_TEXT;
+        }
+        if (category.startsWith("자살자해")) {
+            return CRISIS_SELF_HARM_TEXT;
+        }
+        return CRISIS_DEFAULT_TEXT;
     }
 
     private ChatReply generate(Intent intent, String userMessage) {

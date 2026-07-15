@@ -9,9 +9,9 @@
 `[검증]` 동작 확인 · 🚩DoD Definition of Done 게이트 항목
 
 **현재 상태 (2026-07-14, 실제 코드 기준)**
-코어 파이프라인(bible·crisis·orchestrator·prompt)과 단위 테스트 76건은 완성. 하지만 HTTP
+코어 파이프라인(bible·crisis·orchestrator·prompt)과 단위 테스트 79건은 완성. 하지만 HTTP
 계층(컨트롤러·DTO·인터셉터), 사용자/로그인, 푸시, QA 자동러너, 모바일 앱은 전부 미구현.
-실제 Claude 호출은 아직 한 번도 안 함(API 키 미설정). MVP 목표는 RN 앱(D-002).
+API 키 설정 + 실제 호출 스모크 완료(2026-07-14). 위기 응답을 자살자해/제3자/학대/불명확으로 세분화(D-018·D-019). MVP 목표는 RN 앱(D-002).
 
 ---
 
@@ -20,10 +20,12 @@
 > 여기부터 풀어야 뒤가 진짜로 진행된다.
 
 - [x] [민규] `ANTHROPIC_API_KEY` 발급 → 환경변수 설정 (외부 키 = 사람 승인 항목) — 2026-07-14 완료. 창별 세션이라 새 터미널에선 재-export 필요
-- [ ] [민규] 의도 분류 프롬프트(`intent-classifier.txt`) 승인
+- [x] [민규] 의도 분류 프롬프트(`intent-classifier.txt`) 승인 — 2026-07-14 제3자·변형·분노제외·애도·T4·규칙3 반영, 테스트 통과
+- [x] [민규] '사랑' 대전제 명시 (master.txt + CLAUDE.md 절대원칙, D-018)
 - [ ] [민규] 신규 프롬프트 5건 승인 (daily-chat/out-of-scope 본문, 위기 escape hatch, T2 회복규칙, T7 경계)
-- [ ] [민규] 폴백 문구 2종 검토 (`CRISIS_FALLBACK_TEXT`, `HALLUCINATION_FALLBACK_TEXT`)
-- [ ] [민규] 위기 감지 패턴(`crisis-patterns.txt`) + sticky 30분 검토
+- [x] [민규] 위기 폴백 문구 — 완화 + 카테고리 세분화(자살자해/제3자/학대/불명확), 79건 통과 (D-018·D-019)
+- [ ] [민규] 환각 폴백 문구(`HALLUCINATION_FALLBACK_TEXT`) 검토
+- [ ] [민규] 위기 감지 패턴(`crisis-patterns.txt`) 전체 검토 + sticky 30분 — 일부 반영(D-019: 제3자 패턴·"때려" 미탐 보강); 전체 패턴 검토·2단계(LLM 애매판정)·sticky 보존은 후속
 - [x] [검증] 실제 Claude 호출 스모크 테스트 1회 — 2026-07-14 curl로 claude-haiku-4-5 직접 호출 성공(결제 정상). 앱 통해 분류기 실호출 검증은 Phase 1 앱 실행 시
 - [ ] [검증] 성경 본문이 대상 DB에 적재돼 있는지 확인 (없으면 `bible-import` 프로파일 재실행)
 

@@ -162,6 +162,25 @@
 - 영향: ChatOrchestrator(crisisReply 카테고리 분기), intent-classifier.txt, master.txt, CLAUDE.md.
   독립 신학 검사 PASS(조건부, severity high — 학대 경로는 사람 리뷰 전 배포 불가). 테스트 78건 통과.
 
+### D-019. 위기 응답 세분화: 제3자·학대 분기 + 미탐 패턴 보강
+- 날짜: 2026-07-14 (민규 논의·승인; 외부 리뷰(GPT)·독립 신학 검사 교차 확인 반영)
+- 배경: 위기 응답이 자살자해·기본 이분이라 (1) 제3자 걱정("친구가 죽고 싶대요")에 1인칭 위로가
+  나가고, (2) 학대에 자살예방 번호만 나가며, (3) 결정론 패턴 "때리"가 "때려요"를 놓치는 문제.
+- 결정:
+  1. 위기 응답을 카테고리별로 세분화: 제3자(CRISIS_THIRD_PARTY_TEXT)·학대(CRISIS_ABUSE_TEXT)·
+     자살자해 본인(CRISIS_SELF_HARM_TEXT)·불명확(CRISIS_DEFAULT_TEXT). '믿을 만한 사람' 권유는
+     자살자해 본인일 때만 나간다.
+  2. crisis-patterns.txt에 제3자위기 패턴을 일반 자살자해 패턴보다 앞에 배치. "때리"를 때(리|려|렸|린)로
+     보강(미탐 감소).
+  3. intent-classifier 규칙 3 정리: 분노·게임·비유는 위기 아님, 본인/학대/제3자 실제 위기는 위기.
+  4. 학대 문구는 1366(여성·가정폭력)·1388(청소년)·112·119 + "네 잘못이 아니야"; '기록이 증거' 같은
+     약속·데이터 보관 언급 없음. 번호·데이터 정책은 여전히 법률 검토 대상(PROGRESS "사람 확인 필요").
+- 다음 작업(후속): (a) 애매한 신호는 LLM 2차 판정으로 넘기는 2단계 감지(강한 신호는 결정론 유지,
+  실패 시 안전 강등 금지) — 정신건강 전문가 검토 필요, (b) sticky에 카테고리 보존,
+  (c) CrisisCategory/CrisisSubject enum으로 감지 계층 구조화.
+- 영향: ChatOrchestrator(crisisText 라우팅 + 문구 2종), crisis-patterns.txt, intent-classifier.txt,
+  테스트 추가. 위기 응답 문구·감지 패턴은 사람 승인 항목.
+
 ## 재검토 요청
 
 (없음)
