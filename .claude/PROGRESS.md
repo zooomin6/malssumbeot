@@ -1,7 +1,7 @@
 # PROGRESS.md — 말씀벗 진행 상황
 
 > 모든 에이전트 세션은 이 파일을 먼저 읽고, 작업 후 갱신한다.
-> 마지막 갱신: 2026-07-16 (Phase 1 완료: 채팅 HTTP 계층 `POST /api/chat` + DTO, 테스트 85건)
+> 마지막 갱신: 2026-07-16 (Phase 2 착수: User 엔티티+V3 마이그레이션, 서비스명 확정 D-021, 테스트 87건)
 
 ## 현재 마일스톤: M1 — 기반 구축 (1~2주차)
 
@@ -19,11 +19,13 @@
       기존 `BibleTextImporter`로 31,102절 적재. 각주·소제목 제거, 합쳐진 절 표기("18-19")는
       각 절 번호에 동일 본문 매핑. DB 검증: 총 절 수·책별 최대 장 번호 전부 일치, 샘플 구절
       (창1:1/시23:1/욘1:1/요3:16) 본문 육안 확인 완료. 테스트 3건 추가(`BibleTextScraperTest`)
-- [ ] [user] User — 소셜 로그인(카카오/구글/Apple) 사용자 정보 저장
+- [x] [user] User — 소셜 로그인 사용자 정보 저장 (2026-07-16, `com.malssumbeot.user`): `User`(provider·providerId·
+      email·nickname·타임스탬프, (provider,providerId) 유니크) + `AuthProvider`(GOOGLE/KAKAO/APPLE) + Flyway `V3__users.sql`.
+      신앙 설문 필드·대화 이력은 보류(설문 설계/데이터 보관 정책 대기). 실제 PG 부팅으로 Flyway·validate 통과 확인
 - [ ] [crisis] CrisisSessionStore 인메모리 → Redis/DB 이전 검토 (다중 서버 대비)
 
 ### Repository
-- [ ] [user] User 엔티티에 대응하는 Repository
+- [x] [user] UserRepository (2026-07-16): `findByProviderAndProviderId` — 소셜 콜백에서 기존/신규 판단용. @DataJpaTest 2건
 - [ ] [crisis] CrisisSessionStore 영속화용 Repository (위 Entity 항목과 동일 작업 — Redis/DB 이전 검토)
 
 ### DTO
