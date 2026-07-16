@@ -5,7 +5,8 @@
 
 ## 프로젝트 개요
 
-- **제품**: 말씀벗 — 한국 개신교 크리스찬을 위한 AI 신앙 동반자 (안드로이드/iOS 앱)
+- **제품**: 엠마오 — 한국 개신교 크리스찬을 위한 AI 신앙 동반자 (안드로이드/iOS 앱). 챗봇 이름은
+  "바나바" (D-021). 내부 코드베이스·패키지명은 `malssumbeot` 유지(제품명과 분리)
 - **스택**: 백엔드 Java 17 + Spring Boot 3.x + PostgreSQL + Claude API /
   모바일 React Native(Expo) 단일 코드베이스 / 푸시 FCM·APNs
 - **상세 기획**: `docs/PRD.md` 참조 (제품기획서 v1)
