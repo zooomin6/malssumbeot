@@ -181,6 +181,28 @@
 - 영향: ChatOrchestrator(crisisText 라우팅 + 문구 2종), crisis-patterns.txt, intent-classifier.txt,
   테스트 추가. 위기 응답 문구·감지 패턴은 사람 승인 항목.
 
+### D-020. 위기 sticky 단계적 하강(Model 2) + Phase 0 프롬프트 5건 승인
+- 날짜: 2026-07-15 (민규 논의·승인)
+- 배경: 기존 sticky는 30분 이분법(위기 유지 후 뚝 끊김). 민규가 "30분 뒤 갑자기 괜찮아졌다고 보는 것"보다
+  대화를 이어가며 위기 강도를 서서히 낮추길 원함.
+- 결정:
+  1. `CrisisLevel`(NONE/LOW/MID/HIGH) 도입. 위기 신호 감지 → HIGH. 새 신호 없이 유지 시간
+     (`sticky-duration`, 기본 30분)마다 한 단계씩 하강(HIGH→MID→LOW→해제, 총 90분). **새 위기 신호가
+     오면 즉시 HIGH로 복귀**(안전 우선). 시간 기반으로만 하강한다 — 사용자가 "괜찮아요"라고 말한다고
+     레벨을 낮추지 않는다(진짜 위기 미탐 방지).
+  2. 응답 라우팅(Model 2): HIGH=카테고리별 전체 위기 문구(연락처 포함, D-019 그대로),
+     MID=`CRISIS_MID_TEXT`, LOW=`CRISIS_LOW_TEXT`(연락처를 매번 반복하지 않고 곁을 지키는 톤,
+     "도움 청할 곳" soft 안내 유지). 신규 결정론적 문구 2종.
+  3. Phase 0 프롬프트 5건 승인: daily-chat/out-of-scope 본문, 위기 escape hatch 1줄(두 모드),
+     일상대화 T2 회복 규칙(눅 15장 환대), 기도문 T7 로또·기복/도구적 요청 경계(이면의 마음을
+     하나님 안에서 구하도록 옮김). 환각 폴백 문구·crisis-patterns.txt(수정 없음)·sticky 정책 확인.
+- 미결/후속: (a) 애매한 신호는 LLM 2차 판정으로 넘기는 2단계 감지(정신건강 전문가 검토 필요),
+  (b) sticky에 카테고리 보존. MID/LOW 문구·시간 하강 설계는 인라인 신학 검사 **조건부 PASS
+  (severity high)** — 프로덕션 배포 전 민규 최종 승인 + (권장) 정신건강 전문가 검토.
+- 영향: `CrisisLevel`(신규), `CrisisSessionStore.level`(isActive 대체), `CrisisCheck.level`,
+  `CrisisFilter`, `ChatOrchestrator`(crisisText(category, level) + 문구 2종). 프롬프트 3파일.
+  테스트 81건 통과.
+
 ## 재검토 요청
 
 (없음)

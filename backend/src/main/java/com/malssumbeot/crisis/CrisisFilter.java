@@ -30,9 +30,10 @@ public class CrisisFilter {
             log.info("위기 신호 감지: session={}, category={}", sessionId, signal.get().category());
             return CrisisCheck.newSignal(signal.get());
         }
-        if (sessionStore.isActive(sessionId)) {
-            log.info("위기 상태 유지 중(sticky): session={}", sessionId);
-            return CrisisCheck.sticky();
+        CrisisLevel level = sessionStore.level(sessionId);
+        if (level != CrisisLevel.NONE) {
+            log.info("위기 상태 유지 중(sticky): session={}, level={}", sessionId, level);
+            return CrisisCheck.sticky(level);
         }
         return CrisisCheck.none();
     }

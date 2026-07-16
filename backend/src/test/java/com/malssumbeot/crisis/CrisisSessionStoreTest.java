@@ -12,28 +12,34 @@ class CrisisSessionStoreTest {
             new CrisisSessionStore(Duration.ofMinutes(30), clock);
 
     @Test
-    void 마킹된_세션은_위기_상태다() {
+    void 마킹된_세션은_최고_강도다() {
         store.mark("session-1");
 
-        assertThat(store.isActive("session-1")).isTrue();
-        assertThat(store.isActive("session-2")).isFalse();
+        assertThat(store.level("session-1")).isEqualTo(CrisisLevel.HIGH);
+        assertThat(store.level("session-2")).isEqualTo(CrisisLevel.NONE);
     }
 
     @Test
-    void 유지_시간이_지나면_해제된다() {
+    void 유지_시간마다_한_단계씩_내려간다() {
+        store.mark("session-1");
+
+        clock.advanceSeconds(31 * 60); // 1단위 경과
+        assertThat(store.level("session-1")).isEqualTo(CrisisLevel.MID);
+
+        clock.advanceSeconds(30 * 60); // 2단위 경과
+        assertThat(store.level("session-1")).isEqualTo(CrisisLevel.LOW);
+
+        clock.advanceSeconds(30 * 60); // 3단위 경과
+        assertThat(store.level("session-1")).isEqualTo(CrisisLevel.NONE);
+    }
+
+    @Test
+    void 재감지되면_최고_강도로_복귀한다() {
         store.mark("session-1");
         clock.advanceSeconds(31 * 60);
+        assertThat(store.level("session-1")).isEqualTo(CrisisLevel.MID);
 
-        assertThat(store.isActive("session-1")).isFalse();
-    }
-
-    @Test
-    void 재감지되면_유지_시간이_갱신된다() {
-        store.mark("session-1");
-        clock.advanceSeconds(20 * 60);
-        store.mark("session-1");
-        clock.advanceSeconds(20 * 60);
-
-        assertThat(store.isActive("session-1")).isTrue();
+        store.mark("session-1"); // 새 신호
+        assertThat(store.level("session-1")).isEqualTo(CrisisLevel.HIGH);
     }
 }
