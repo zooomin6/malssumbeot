@@ -60,27 +60,47 @@ theology-checker가 지적한 시나리오:
 턴 2: "내일 면접 기도문 써줘"      → 평범한 메시지... 위기 컨텍스트 휘발?
 ```
 
-메시지 단위로만 판단하면 턴 2에서 위기 상태가 사라진다. 해결: **세션 단위 sticky flag** —
-한 번 위기가 감지되면 유지 시간(기본 30분, 설정값) 동안 위기 프로토콜을 계속 적용한다.
+메시지 단위로만 판단하면 턴 2에서 위기 상태가 사라진다. 해결: **세션 단위 sticky 상태** —
+한 번 위기가 감지되면 이후 턴이 평범해도 위기 프로토콜을 계속 적용한다.
 
 ```java
 public CrisisCheck check(String sessionId, String message) {
     if (detector.detect(message).isPresent()) {       // 이번 메시지에서 감지
-        sessionStore.mark(sessionId);                  // 세션에 도장
-        return CrisisCheck.newSignal(...);
+        sessionStore.mark(sessionId);                  // 세션에 도장(→ HIGH)
+        return CrisisCheck.newSignal(...);             // 항상 최고 강도
     }
-    if (sessionStore.isActive(sessionId)) {            // 직전 감지의 여운
-        return CrisisCheck.sticky();
+    CrisisLevel level = sessionStore.level(sessionId); // 직전 감지의 여운(강도)
+    if (level != CrisisLevel.NONE) {
+        return CrisisCheck.sticky(level);
     }
     return CrisisCheck.none();
 }
 ```
 
+### 왜 "이분법"이 아니라 "단계적 하강"인가 (D-020)
+
+처음엔 "30분간 위기 유지 → 이후 뚝 끊김"이었다. 문제: 30분이 지나면 갑자기 "이제 괜찮아졌다"고
+간주하는 게 대화 흐름상 부자연스럽다. 사람이 위기에서 빠져나오는 건 스위치가 아니라 그라데이션이다.
+
+그래서 **위기 강도(`CrisisLevel`)를 시간에 따라 한 단계씩 낮춘다**:
+
+```
+신호 감지 → HIGH ──30분──▶ MID ──30분──▶ LOW ──30분──▶ NONE(해제)
+              (연락처 포함)   (곁 지키기)    (따뜻한 마무리)
+```
+
+- 강도는 **시간 기반으로만** 내려간다. 사용자가 "괜찮아요"라고 말한다고 낮추지 **않는다** —
+  위기에 처한 사람일수록 "괜찮다"고 말하기 때문이다(미탐 방지, 3절 비대칭 원칙의 연장).
+- **새 위기 신호가 오면 즉시 HIGH로 복귀**한다. 하강은 "신호가 잠잠한 시간"에만 진행되고,
+  재신호는 안전을 위해 언제나 최고 강도를 되찾는다.
+- 강도별로 응답이 다르다(orchestrator): HIGH=카테고리별 전체 위기 문구(연락처), MID/LOW=연락처를
+  매번 반복하지 않고 곁을 지키는 톤. 연락처 스팸 대신 "함께 내려오는" 경험을 준다.
+
 구현 디테일:
 - `ConcurrentHashMap<String, Instant>` 인메모리 — 지금은 단일 서버 전제.
   REST API + 세션이 생기면 Redis/DB로 옮긴다 (서버 여러 대면 인메모리는 공유 안 됨).
-- 만료는 읽기 시점에 게으르게(lazy) 처리 — 별도 청소 스레드 없이 단순하게.
-- 재감지 시 유지 시간 갱신 (위기 대화가 이어지는 동안 계속 연장).
+- 강도 계산: `HIGH.rank() - floor(경과시간 / 유지시간)`. 0 이하면 항목을 지운다(lazy 만료).
+- 재감지 시 `mark()`로 시각을 갱신 → 경과시간 0 → HIGH 복귀.
 
 ## 5. 시간을 테스트하는 법: Clock 주입
 
@@ -88,8 +108,8 @@ public CrisisCheck check(String sessionId, String message) {
 주입받게 하고, 테스트에서는 시간을 마음대로 돌리는 가짜 시계를 쓴다:
 
 ```java
-clock.advanceSeconds(31 * 60);                  // 31분 점프
-assertThat(store.isActive("session-1")).isFalse();
+clock.advanceSeconds(31 * 60);                  // 31분 점프 → 한 단계 하강
+assertThat(store.level("session-1")).isEqualTo(CrisisLevel.MID);
 ```
 
 `Instant.now()`를 코드에 직접 박으면 이 테스트는 불가능하다. **"현재 시각"도 의존성**이고,
@@ -106,5 +126,6 @@ assertThat(store.isActive("session-1")).isFalse();
 
 - 채팅 REST API가 생기면 이 필터를 Spring 인터셉터로 배선 — 어떤 컨트롤러도
   검사를 건너뛸 수 없게 (헌법: "위기 감지는 의도 분류보다 앞단, 우회 불가").
-- 패턴 목록·sticky 시간(30분)은 사람(민규) 검토 대상으로 PROGRESS.md에 올려둠.
-- 위기 응답 생성(109·1577-0199 안내 + 공감 메시지)은 시스템 프롬프트 탑재 작업에서.
+- 패턴 목록·sticky 정책은 사람(민규) 검토 완료(2026-07-15): 패턴 수정 없음, sticky는 단계 하강(D-020).
+- MID/LOW 신규 문구 + 시간 하강 설계는 정신건강 전문가 검토 대상(인라인 신학 검사 조건부 PASS, severity high).
+- 후속: 애매한 신호를 LLM 2차 판정으로 넘기는 2단계 감지, sticky에 위기 카테고리 보존.

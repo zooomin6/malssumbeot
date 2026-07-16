@@ -33,9 +33,20 @@ class CrisisFilterTest {
     }
 
     @Test
-    void 유지_시간이_지나면_평범한_메시지는_위기가_아니다() {
-        filter.check("s1", "다 끝내고 싶어");
+    void sticky_강도는_유지_시간마다_한_단계씩_내려간다() {
+        filter.check("s1", "다 끝내고 싶어"); // HIGH
+
         clock.advanceSeconds(31 * 60);
+        CrisisCheck mid = filter.check("s1", "내일 면접 기도문 써줘");
+        assertThat(mid.crisis()).isTrue();
+        assertThat(mid.trigger()).isEqualTo(CrisisCheck.Trigger.STICKY);
+        assertThat(mid.level()).isEqualTo(CrisisLevel.MID);
+    }
+
+    @Test
+    void 유지_시간이_충분히_지나면_평범한_메시지는_위기가_아니다() {
+        filter.check("s1", "다 끝내고 싶어");
+        clock.advanceSeconds(91 * 60); // 3단위 초과 → 해제
 
         CrisisCheck check = filter.check("s1", "내일 면접 기도문 써줘");
 

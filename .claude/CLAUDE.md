@@ -5,7 +5,8 @@
 
 ## 프로젝트 개요
 
-- **제품**: 말씀벗 — 한국 개신교 크리스찬을 위한 AI 신앙 동반자 (안드로이드/iOS 앱)
+- **제품**: 엠마오 — 한국 개신교 크리스찬을 위한 AI 신앙 동반자 (안드로이드/iOS 앱). 챗봇 이름은
+  "바나바" (D-021). 내부 코드베이스·패키지명은 `malssumbeot` 유지(제품명과 분리)
 - **스택**: 백엔드 Java 17 + Spring Boot 3.x + PostgreSQL + Claude API /
   모바일 React Native(Expo) 단일 코드베이스 / 푸시 FCM·APNs
 - **상세 기획**: `docs/PRD.md` 참조 (제품기획서 v1)
@@ -37,7 +38,7 @@
 
 ## 코딩 컨벤션
 
-- 패키지 구조: `com.malssumbeot.{webhook|orchestrator|bible|crisis|prompt}`
+- 패키지 구조: `com.malssumbeot.{api|orchestrator|bible|crisis|prompt}` (D-002로 카톡 webhook→REST api, Phase 1)
 - 의도 분류 → 프롬프트 분기 → 응답 생성 → 구절 검증의 파이프라인 순서를 유지한다
 - 성경 구절 응답 흐름: 모델이 구절 주소만 제안 → `BibleVerseService`가 DB 원문 조회 → 원문 삽입.
   모델 출력의 구절 본문을 그대로 사용자에게 보내는 코드는 금지.

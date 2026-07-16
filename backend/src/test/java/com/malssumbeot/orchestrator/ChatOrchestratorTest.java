@@ -24,6 +24,9 @@ import com.malssumbeot.prompt.PromptAssembler;
 import com.malssumbeot.prompt.PromptRepository;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -37,10 +40,11 @@ class ChatOrchestratorTest {
     private final BibleVerseRepository verseRepository = mock(BibleVerseRepository.class);
 
     private final VerseReferenceParser parser = new VerseReferenceParser(BibleTestFixtures.catalog());
+    private final MutableClock clock = new MutableClock();
     private final CrisisFilter crisisFilter = new CrisisFilter(
             new CrisisDetector(List.of("제3자위기\t(친구|동생).{0,10}(죽고싶|자해)",
                     "자살자해직접\t죽고싶", "학대\t폭행")),
-            new CrisisSessionStore(Duration.ofMinutes(30), Clock.systemUTC()));
+            new CrisisSessionStore(Duration.ofMinutes(30), clock));
 
     private final ChatOrchestrator orchestrator = new ChatOrchestrator(
             crisisFilter, classifier,
@@ -111,6 +115,19 @@ class ChatOrchestratorTest {
         assertThat(reply.text()).contains("가까운 분");
         assertThat(reply.text()).doesNotContain("믿을 만한 사람");
         assertThat(reply.text()).contains("112");
+        verifyNoInteractions(claudeChat);
+    }
+
+    @Test
+    void 위기_강도가_내려오면_연락처_반복_없이_곁을_지키는_문구로_전환된다() {
+        orchestrator.handle("s1", "죽고 싶어"); // HIGH — 연락처 포함
+        clock.advanceSeconds(31 * 60); // 유지 시간 1단위 경과 → MID
+
+        ChatReply mid = orchestrator.handle("s1", "밥은 먹었어"); // 평범한 메시지, sticky MID
+
+        assertThat(mid.crisis()).isTrue();
+        assertThat(mid.text()).doesNotContain("109").doesNotContain("1577-0199");
+        assertThat(mid.text()).contains("여기 있");
         verifyNoInteractions(claudeChat);
     }
 
@@ -247,5 +264,30 @@ class ChatOrchestratorTest {
 
         assertThat(reply.intent()).isEqualTo(Intent.OUT_OF_SCOPE);
         verify(claudeChat).complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString());
+    }
+
+    /** 위기 sticky 강도 하강(D-020)을 검증하기 위해 시간을 임의로 흘릴 수 있는 시계. */
+    private static final class MutableClock extends Clock {
+
+        private Instant now = Instant.parse("2026-07-15T00:00:00Z");
+
+        void advanceSeconds(long seconds) {
+            now = now.plusSeconds(seconds);
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
     }
 }

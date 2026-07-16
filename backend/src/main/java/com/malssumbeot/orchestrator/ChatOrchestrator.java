@@ -5,6 +5,7 @@ import com.malssumbeot.bible.VersePassage;
 import com.malssumbeot.bible.VerseReferenceScanner;
 import com.malssumbeot.crisis.CrisisCheck;
 import com.malssumbeot.crisis.CrisisFilter;
+import com.malssumbeot.crisis.CrisisLevel;
 import com.malssumbeot.crisis.CrisisSignal;
 import com.malssumbeot.prompt.PromptAssembler;
 import java.util.ArrayList;
@@ -81,6 +82,24 @@ public class ChatOrchestrator {
             "말씀 한 구절을 정확히 확인하지 못했어요. 잘못된 구절을 전해 드리지 않으려 조심하고 있습니다. "
                     + "조금 더 이야기를 들려주시면 함께 살펴볼게요.";
 
+    /**
+     * 위기 강도가 MID로 내려온 sticky 구간의 문구 (D-020, Model 2).
+     * 연락처를 매번 반복하지 않고 곁을 지키되, 도움을 청할 곳이 있음을 부드럽게 상기시킨다.
+     * 문구는 사람 승인 대기.
+     */
+    static final String CRISIS_MID_TEXT = """
+            조금 전 많이 힘들다고 하셨는데, 지금 마음은 어떠신가요? 저는 계속 여기 있어요.
+            빨리 괜찮아지지 않아도 괜찮습니다. 떠오르는 이야기가 있으면 무엇이든 편하게 들려주세요.
+            혹시 마음이 다시 많이 무거워지면, 언제든 도움을 청할 수 있는 곳이 있다는 것도 잊지 마세요.""";
+
+    /**
+     * 위기 강도가 LOW로 내려온 sticky 구간의 문구 (D-020, Model 2).
+     * 대화를 따뜻하게 마무리하되, 다시 힘들 때 돌아올 수 있음을 열어 둔다. 문구는 사람 승인 대기.
+     */
+    static final String CRISIS_LOW_TEXT = """
+            오늘 마음을 나눠 주셔서 고마워요. 조금이라도 숨을 돌리셨기를 바랍니다.
+            앞으로도 힘든 순간이 오면 혼자 담아두지 말고 언제든 다시 찾아와 주세요. 저는 늘 여기 있을게요.""";
+
     private final CrisisFilter crisisFilter;
     private final IntentClassifier classifier;
     private final PromptAssembler promptAssembler;
@@ -105,29 +124,37 @@ public class ChatOrchestrator {
     public ChatReply handle(String sessionId, String userMessage) {
         CrisisCheck check = crisisFilter.check(sessionId, userMessage);
         if (check.crisis()) {
-            // 위기 카테고리(자살자해/학대)에 따라 응답을 분기한다. sticky는 신호가 없어 기본 문구로 간다.
-            return crisisReply(check.signal().map(CrisisSignal::category).orElse(null));
+            // 카테고리(자살자해/학대 등)와 강도(HIGH→MID→LOW, D-020)에 따라 응답을 분기한다.
+            String category = check.signal().map(CrisisSignal::category).orElse(null);
+            return crisisReply(category, check.level());
         }
 
         Intent intent = classifier.classify(userMessage);
         if (intent == Intent.CRISIS) {
-            // 2차 방어선(LLM)의 판정도 세션 sticky 상태에 반영한다. 카테고리를 알 수 없어 기본 문구로 간다.
+            // 2차 방어선(LLM)의 위기 판정은 새 신호이므로 최고 강도(HIGH)로 다룬다.
             crisisFilter.recordCrisis(sessionId);
-            return crisisReply(null);
+            return crisisReply(null, CrisisLevel.HIGH);
         }
 
         return generate(intent, userMessage);
     }
 
-    private ChatReply crisisReply(String category) {
-        return new ChatReply(crisisText(category), Intent.CRISIS, true, List.of(), List.of());
+    private ChatReply crisisReply(String category, CrisisLevel level) {
+        return new ChatReply(crisisText(category, level), Intent.CRISIS, true, List.of(), List.of());
     }
 
     /**
-     * 위기 카테고리별 응답 선택. '믿을 만한 사람' 권유는 확실한 자살·자해(본인) 신호일 때만 나간다.
+     * 위기 응답 선택. 강도가 내려오면(MID/LOW) 연락처를 반복하지 않고 곁을 지키는 문구로 전환한다(D-020).
+     * HIGH일 때만 카테고리별 문구로 분기하며, '믿을 만한 사람' 권유는 자살·자해(본인) 신호에만 넣는다.
      * 제3자 위기·학대·불명확은 각각 별도 문구로, 위험할 수 있는 권유가 섞이지 않게 한다.
      */
-    private static String crisisText(String category) {
+    private static String crisisText(String category, CrisisLevel level) {
+        if (level == CrisisLevel.MID) {
+            return CRISIS_MID_TEXT;
+        }
+        if (level == CrisisLevel.LOW) {
+            return CRISIS_LOW_TEXT;
+        }
         if (category == null) {
             return CRISIS_DEFAULT_TEXT;
         }
