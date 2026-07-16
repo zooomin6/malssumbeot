@@ -8,12 +8,13 @@
 `[민규]` 사람만 가능 (승인·계정·키) · `[코드]` 코드 작업 (민규+claude) ·
 `[검증]` 동작 확인 · 🚩DoD Definition of Done 게이트 항목
 
-**현재 상태 (2026-07-15, 실제 코드 기준)**
-코어 파이프라인(bible·crisis·orchestrator·prompt)과 단위 테스트 81건은 완성. 하지만 HTTP
-계층(컨트롤러·DTO·인터셉터), 사용자/로그인, 푸시, QA 자동러너, 모바일 앱은 전부 미구현.
-**Phase 0 완료(2026-07-15)**: 프롬프트 5건 승인·반영, 환각/위기 문구 검토, 성경 DB 적재 확인,
-위기 sticky를 단계 하강(HIGH→MID→LOW→해제)으로 재설계(D-020). 위기 경로는 조건부 PASS(severity high,
-전문가 검토 권장). 다음은 Phase 1(백엔드 HTTP 계층). MVP 목표는 RN 앱(D-002).
+**현재 상태 (2026-07-16, 실제 코드 기준)**
+코어 파이프라인 + **채팅 HTTP 계층(`POST /api/chat`)** 완성, 단위·통합 테스트 85건. 사용자/로그인,
+푸시, QA 자동러너, 모바일 앱은 아직 미구현.
+**Phase 0 완료(2026-07-15)**: 프롬프트 5건 승인, 위기 sticky 단계 하강(D-020).
+**Phase 1 완료(2026-07-16)**: ChatRequest/Response DTO, ChatController, sessionId 바디, 위기 우회불가
+= 단일 진입점 보장(인터셉터 후속), `api` 패키지. 위기 우회불가는 통합테스트로 검증.
+다음은 Phase 2(인증 & 사용자). MVP 목표는 RN 앱(D-002).
                                                          
 ---
 
@@ -34,12 +35,12 @@
 ## Phase 1 — 백엔드 HTTP 계층 (두뇌에 문 달기) · M1 실질 마무리
 > `ChatOrchestrator.handle()`을 밖에서 부를 수 있게 만든다. 지금 가장 큰 공백.
 
-- [ ] [코드] 채팅 요청/응답 DTO 설계 (`ChatReply`를 API 응답 형태로 노출)
-- [ ] [코드] 채팅 REST API 컨트롤러 (예: `POST /api/chat`) → `ChatOrchestrator.handle` 연결
-- [ ] [코드] `sessionId` 전달 방식 확정 (헤더 vs 바디) — 위기 sticky가 세션 단위라 필수
-- [ ] [코드] `CrisisFilter`를 Spring 인터셉터(`HandlerInterceptor`)로 배선 — 우회 불가 (D-004)
-- [ ] [코드] 새 컨트롤러 패키지 명명 정리 (`webhook`→`api`, CLAUDE.md 컨벤션 갱신)
-- [ ] [검증] curl/통합테스트 E2E: 일반 대화 / 위기 3종 / 구절 인용 / 환각 거부
+- [x] [코드] 채팅 요청/응답 DTO 설계 — 2026-07-16 `ChatRequest`(sessionId·message, @NotBlank) + `ChatResponse`(ChatReply→API, passages 구조화)
+- [x] [코드] 채팅 REST API 컨트롤러 (`POST /api/chat`) → `ChatOrchestrator.handle` 연결 — 2026-07-16 `com.malssumbeot.api.ChatController`
+- [x] [코드] `sessionId` 전달 방식 확정 — 2026-07-16 요청 바디 필드로 결정(인증 전 MVP, 민규 승인)
+- [x] [코드] 위기 우회 불가 배선 — 2026-07-16 인터셉터 대신 **단일 진입점(ChatController→handle, handle이 위기 우선)**으로 보장(민규 결정). 통합테스트로 검증. 인터셉터는 엔드포인트 다수화 시 후속
+- [x] [코드] 컨트롤러 패키지 명명 정리 (`webhook`→`api`) + CLAUDE.md 컨벤션 갱신 — 2026-07-16
+- [~] [검증] E2E: HTTP 매핑·입력검증(@WebMvcTest) + 위기 우회불가 통합테스트(@SpringBootTest, 모델 미호출) 완료. **위기 3종·구절 인용·환각 거부 전수 E2E는 Phase 4 QA 러너**가 동일 엔드포인트로 수행(도메인 단위 테스트로는 이미 커버). 실기동 curl 스모크는 선택
 
 ## Phase 2 — 인증 & 사용자 (앱 로그인 기반)
 > RN 앱 로그인과 대화 이력 동기화의 토대.

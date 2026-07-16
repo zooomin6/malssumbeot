@@ -37,7 +37,7 @@
 
 ## 코딩 컨벤션
 
-- 패키지 구조: `com.malssumbeot.{webhook|orchestrator|bible|crisis|prompt}`
+- 패키지 구조: `com.malssumbeot.{api|orchestrator|bible|crisis|prompt}` (D-002로 카톡 webhook→REST api, Phase 1)
 - 의도 분류 → 프롬프트 분기 → 응답 생성 → 구절 검증의 파이프라인 순서를 유지한다
 - 성경 구절 응답 흐름: 모델이 구절 주소만 제안 → `BibleVerseService`가 DB 원문 조회 → 원문 삽입.
   모델 출력의 구절 본문을 그대로 사용자에게 보내는 코드는 금지.

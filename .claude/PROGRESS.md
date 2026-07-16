@@ -1,7 +1,7 @@
 # PROGRESS.md — 말씀벗 진행 상황
 
 > 모든 에이전트 세션은 이 파일을 먼저 읽고, 작업 후 갱신한다.
-> 마지막 갱신: 2026-07-15 (Phase 0 완료: 프롬프트 5건 승인, 위기 sticky 단계 하강 D-020, 테스트 81건)
+> 마지막 갱신: 2026-07-16 (Phase 1 완료: 채팅 HTTP 계층 `POST /api/chat` + DTO, 테스트 85건)
 
 ## 현재 마일스톤: M1 — 기반 구축 (1~2주차)
 
@@ -27,7 +27,8 @@
 - [ ] [crisis] CrisisSessionStore 영속화용 Repository (위 Entity 항목과 동일 작업 — Redis/DB 이전 검토)
 
 ### DTO
-- [ ] [chat] 채팅 요청/응답 DTO 설계
+- [x] [chat] 채팅 요청/응답 DTO 설계 (2026-07-16, `com.malssumbeot.api`): `ChatRequest`(sessionId·message
+      @NotBlank), `ChatResponse`(ChatReply→API, passages를 구조화 Verse 리스트로 노출, D-003 유지)
 - [ ] [auth] 로그인 요청/응답 DTO 설계
 
 ### Service
@@ -57,11 +58,15 @@
       (ChatOrchestrator를 입력으로, 신학 검사 기준으로 자동 판정)
 
 ### Controller
-- [ ] [chat] 채팅 REST API 엔드포인트
+- [x] [chat] 채팅 REST API 엔드포인트 (2026-07-16): `ChatController` `POST /api/chat` → `ChatOrchestrator.handle`.
+      단일 진입점이 위기 우회 불가를 보장(handle이 위기 우선). @WebMvcTest 슬라이스(매핑·검증) +
+      @SpringBootTest 통합테스트(위기 E2E, 모델 미호출)
 - [ ] [auth] 인증 엔드포인트 (카카오/구글/Apple 소셜 로그인)
 
 ### Filter / Interceptor
-- [ ] [crisis] CrisisFilter를 Spring 인터셉터로 배선 (어떤 핸들러도 우회 불가하게)
+- [~] [crisis] 위기 우회 불가 배선: 2026-07-16 인터셉터 대신 **단일 진입점**으로 보장(민규 결정 — 인터셉터는
+      위기 응답 생성을 복제하거나 바디 재파싱이 필요해 이중감지·복잡. 엔드포인트가 늘면 그때 도입).
+      통합테스트 `ChatApiIntegrationTest`로 위기 메시지가 HTTP 경로에서 모델 없이 위기 프로토콜로 가는 것 검증
 
 ### 레이어 외 활동 (기획 / 문서 / 인프라 / 테스트 / QA 실행)
 - [x] 제품기획서 v1 작성 (`docs/PRD.md`)
@@ -86,10 +91,12 @@
 - [x] 테스트 73건 통과
 - [x] 테스트 74건 통과
 - [x] 테스트 76건 통과
+- [x] 테스트 81건 통과 (D-020 위기 sticky 단계 하강)
+- [x] 테스트 85건 통과 (Phase 1 API 계층: 컨트롤러 슬라이스 3 + 위기 E2E 통합 1)
 
 ## 진행 중
 
-- [ ] (없음 — Phase 0 완료. 다음: Phase 1 백엔드 HTTP 계층)
+- [ ] (없음 — Phase 1 완료. 다음: Phase 2 인증 & 사용자 — User 엔티티/소셜 로그인/대화 이력)
 
 ## 모바일 다음 작업 (React Native + Expo)
 1. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
@@ -109,8 +116,7 @@
 - [ ] 성명표시권 표기 문구 확정 (D-016): 개역한글은 재산권은 만료됐지만 성명표시권(저작자 표시)은
   영구 권리라 RN 앱 어딘가(설정/정보 화면)에 "성경전서 개역한글판, 대한성서공회" 표기가 필요함.
   정확한 문구·위치는 RN 앱 작업 시 확정 (모바일 다음 작업 #4 스토어 제출 준비와 함께 처리 제안)
-- [ ] CLAUDE.md 패키지 컨벤션의 `webhook` 모듈 명칭 확인: D-002(카톡 챗봇 → RN 앱)로
-  webhook이 REST API로 대체되었으므로 `com.malssumbeot.api`로 명명 제안 (CLAUDE.md 수정 필요)
+- [x] (2026-07-16 완료) CLAUDE.md 패키지 컨벤션 `webhook`→`api` 갱신. 컨트롤러·DTO는 `com.malssumbeot.api`
 - [x] (2026-07-14 완료) ANTHROPIC_API_KEY 발급·설정 + curl 스모크 테스트 성공.
   앱 통한 분류기 실호출 검증은 Phase 1 앱 실행 시
 - [x] (2026-07-15 완료) **의도 분류 프롬프트 승인** (`backend/src/main/resources/prompts/intent-classifier.txt`):
@@ -167,3 +173,4 @@ CLAUDE.md의 DoD 체크리스트 참조. 전부 충족 시 베타 배포 보고.
 | 2026-07-02 | 개역한글 텍스트 소스 확정(대한성서공회 공식 성경읽기 페이지, D-016) + `BibleTextScraper`(Jsoup) 신규 작성 → TSV 생성 → 기존 임포터로 31,102절 DB 적재, 검증 완료. `BibleBookCatalog`에 영문 코드 해석 추가. 브랜치 `feature/bible-text-import` | 완료 |
 | 2026-07-12 | 장 단위 인용 검증 보강: `시편 23편`·`눅 15장` 스캔 및 chapterCount 검증 추가. 존재하지 않는 장은 재생성·제거 경로로 처리. 모델이 성경 주소와 함께 생성한 본문·풀이는 모두 제거하고 DB 원문만 별도 전달(D-017). 위기는 고정 연락처 안내로 결정론 처리, 영어 장절도 환각 후보로 감지. 테스트 76건 통과. 브랜치 `feature/verse-reference-validation` | 완료 |
 | 2026-07-15 | **Phase 0 완료**: 프롬프트 5건 승인·반영(daily-chat/out-of-scope 본문, 위기 escape hatch, T2 회복규칙, T7 로또경계), 환각 폴백 문구 승인, crisis-patterns 수정없음 확정. 위기 sticky를 단계 하강(HIGH→MID→LOW→해제, 90분)으로 재설계 + MID/LOW 문구 2종(D-020, Model 2). 성경 DB 적재 확인(31,102절). 인라인 신학 검사: 프롬프트 PASS, 위기 경로 조건부 PASS(severity high, 전문가 검토 권장). 테스트 81건 통과. 브랜치 `feature/crisis-response-branching` | 완료 |
+| 2026-07-16 | **Phase 1 완료**: 채팅 HTTP 계층. `com.malssumbeot.api` 신규 — `ChatRequest`/`ChatResponse` DTO, `ChatController`(`POST /api/chat`). sessionId 바디 필드, 위기 우회 불가는 단일 진입점으로 보장(인터셉터 후속, 민규 결정). CLAUDE.md 컨벤션 webhook→api. @WebMvcTest 3 + 위기 E2E 통합테스트 1 추가, 테스트 85건 통과 | 완료 |
