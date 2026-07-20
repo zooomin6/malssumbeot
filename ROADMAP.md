@@ -45,7 +45,8 @@
 ## Phase 2 — 인증 & 사용자 (앱 로그인 기반)
 > RN 앱 로그인과 대화 이력 동기화의 토대.
 
-- [ ] [민규] 카카오/구글/Apple 개발자 콘솔 앱 등록 (클라이언트 ID/시크릿)
+- [~] [민규] 카카오/구글/Apple 개발자 콘솔 앱 등록 (클라이언트 ID/시크릿) — 카카오(7/20)·구글 완료.
+      애플만 남음(애플 로그인 미구현이라 iOS 착수 시 처리)
 - [x] [코드] `User` 엔티티 + Flyway `V3` 마이그레이션 + `UserRepository` — 2026-07-16 완료 (`com.malssumbeot.user`,
       PG 부팅 validate 통과). 인증 신원만 담음.
       · 회원가입 설문 "신앙 시작 시기" 필드는 **보류** — 설문 UI 설계(Phase 3) 때 필드 확정 후 추가.
@@ -53,7 +54,10 @@
       · 대화 이력 저장도 **보류** — 위기·학대 진술 데이터 보관 정책(법률 검토) 확정 후
 - [x] [코드] 소셜 로그인(OAuth) 인증 엔드포인트 + 인증 DTO + 토큰 발급 — 2026-07-20 완료. 방식 A(토큰 검증형, D-022):
       `com.malssumbeot.auth` — `POST /api/auth/{provider}`(google|kakao), 제공자 토큰 검증(구글 ID토큰/카카오 사용자정보 API)
-      → User upsert → 자체 JWT 발급. 테스트 98건 통과. `/api/chat` JWT 보호는 후속 분리
+      → User upsert → 자체 JWT 발급. 테스트 98건 통과.
+- [x] [코드] `/api/chat` JWT 인증 배선 — 2026-07-20 완료(D-023). `JwtAuthInterceptor`(HandlerInterceptor)+`WebConfig`가
+      `/api/**` 보호·`/api/auth/**` 제외. 헤더 JWT를 `JwtService.parse`로 검증(실패=401 `UnauthenticatedException`).
+      신원 모델 A(sessionId 공존, 위기 로직 무변경). Spring Security 미도입(경량). 테스트 103건 통과
 - [ ] [코드] 대화 이력 저장 설계 (엔티티 + 마이그레이션) — 앱 동기화용
 - [ ] [코드] `CrisisSessionStore` 인메모리 → Redis/DB 이전 검토 (영속화·다중 서버)
 

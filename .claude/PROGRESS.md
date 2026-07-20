@@ -67,12 +67,17 @@
 - [x] [auth] 인증 엔드포인트 (2026-07-20, D-022 방식 A): `AuthController` `POST /api/auth/{provider}`(google|kakao)
       → `AuthService`(제공자 토큰 검증 → User upsert → JWT 발급). 제공자별 `SocialTokenVerifier`(GoogleTokenVerifier=
       구글 라이브러리로 ID토큰 검증, KakaoTokenVerifier=사용자정보 API 호출), `JwtService`(jjwt). 애플은 미구현(400).
-      `/api/chat`에 JWT 인증 배선은 후속. 테스트 98건 통과
+      `/api/chat`에 JWT 인증 배선 완료(2026-07-20, D-023 — 아래 Filter/Interceptor 참조). 테스트 98건 통과
 
 ### Filter / Interceptor
 - [~] [crisis] 위기 우회 불가 배선: 2026-07-16 인터셉터 대신 **단일 진입점**으로 보장(민규 결정 — 인터셉터는
       위기 응답 생성을 복제하거나 바디 재파싱이 필요해 이중감지·복잡. 엔드포인트가 늘면 그때 도입).
       통합테스트 `ChatApiIntegrationTest`로 위기 메시지가 HTTP 경로에서 모델 없이 위기 프로토콜로 가는 것 검증
+- [x] [auth] JWT 인증 배선 (2026-07-20, D-023): `JwtAuthInterceptor`(HandlerInterceptor) + `WebConfig`가
+      `/api/**` 보호·`/api/auth/**` 제외. 헤더 `Authorization: Bearer`의 JWT를 `JwtService.parse`로 검증,
+      실패 시 `UnauthenticatedException`(401), 성공 시 userId를 request 속성(`authUserId`)에 실음. 신원 모델
+      A(공존): sessionId·위기 로직·DTO 무변경. 슬라이스 테스트 4건(무토큰/형식오류/깨진토큰→401, 유효→200,
+      401 시 오케스트레이터 미호출) + 기존 슬라이스에 `@Import(JwtService.class)` 보정. 테스트 103건 통과
 
 ### 레이어 외 활동 (기획 / 문서 / 인프라 / 테스트 / QA 실행)
 - [x] 제품기획서 v1 작성 (`docs/PRD.md`)
@@ -102,8 +107,8 @@
 
 ## 진행 중
 
-- [ ] (없음 — Phase 2 소셜 로그인 엔드포인트 완료. 다음 후보: `/api/chat` JWT 보호, 대화 이력 저장(법률검토 대기),
-  CrisisSessionStore 영속화, 또는 Phase 3 모바일)
+- [ ] (없음 — Phase 2 소셜 로그인 + `/api/chat` JWT 보호(D-023) 완료. 다음 후보: 대화 이력 저장(법률검토 대기),
+  CrisisSessionStore 영속화, 애플 로그인(콘솔+구현), 또는 Phase 3 모바일)
 
 ## 모바일 다음 작업 (React Native + Expo)
 1. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
@@ -158,7 +163,7 @@
   (`CRISIS_SELF_HARM_TEXT`/`CRISIS_DEFAULT_TEXT`). 학대·카테고리 불명확은 '믿을 만한 사람' 권유
   제거 + 112 안내한 **안전 잠정본**. 학대 전용 문구·기관 번호(1366·아동보호전문기관 등) 확정은 이 항목에서.
 - [ ] Apple Developer($99/년) / Google Play($25) 개발자 계정 등록
-- [ ] 소셜 로그인용 카카오/구글/Apple 개발자 콘솔 앱 등록
+- [~] 소셜 로그인용 카카오/구글/Apple 개발자 콘솔 앱 등록 — 카카오(7/20)·구글 완료. 애플만 남음(로그인 미구현, iOS 착수 시)
 - [x] (2026-07-16 확정, D-021) 서비스명: 앱=엠마오, 챗봇=바나바. 내부 패키지 malssumbeot 유지.
   챗봇 자기지칭 "바나바"를 프롬프트에 반영하는 것은 사람 승인 항목이라 프롬프트 작업 시 처리
 - [ ] RN 담당 협업자 확정 (친구 협업 vs 직접 개발)
@@ -190,4 +195,5 @@ CLAUDE.md의 DoD 체크리스트 참조. 전부 충족 시 베타 배포 보고.
 | 2026-07-12 | 장 단위 인용 검증 보강: `시편 23편`·`눅 15장` 스캔 및 chapterCount 검증 추가. 존재하지 않는 장은 재생성·제거 경로로 처리. 모델이 성경 주소와 함께 생성한 본문·풀이는 모두 제거하고 DB 원문만 별도 전달(D-017). 위기는 고정 연락처 안내로 결정론 처리, 영어 장절도 환각 후보로 감지. 테스트 76건 통과. 브랜치 `feature/verse-reference-validation` | 완료 |
 | 2026-07-15 | **Phase 0 완료**: 프롬프트 5건 승인·반영(daily-chat/out-of-scope 본문, 위기 escape hatch, T2 회복규칙, T7 로또경계), 환각 폴백 문구 승인, crisis-patterns 수정없음 확정. 위기 sticky를 단계 하강(HIGH→MID→LOW→해제, 90분)으로 재설계 + MID/LOW 문구 2종(D-020, Model 2). 성경 DB 적재 확인(31,102절). 인라인 신학 검사: 프롬프트 PASS, 위기 경로 조건부 PASS(severity high, 전문가 검토 권장). 테스트 81건 통과. 브랜치 `feature/crisis-response-branching` | 완료 |
 | 2026-07-20 | **Phase 2 소셜 로그인**: 방식 A(토큰 검증형, D-022) 결정. `com.malssumbeot.auth` 신규 — `POST /api/auth/{provider}`(google/kakao), 제공자별 TokenVerifier(구글 ID토큰·카카오 사용자정보 API) + JwtService(jjwt) + AuthService(User upsert). 카카오 개발자 콘솔 앱 등록(엠마오, 이메일은 비즈앱 전까지 미수집). 의존성 jjwt·google-api-client 추가. 테스트 98건 통과. 브랜치 `feature/oauth-login` | 완료 |
+| 2026-07-20 | **`/api/chat` JWT 인증 배선(D-023)**: `JwtAuthInterceptor`(HandlerInterceptor)+`WebConfig`로 `/api/**` 보호·`/api/auth/**` 제외. `UnauthenticatedException`(401). 신원 모델 A(sessionId 공존, 위기 로직 무변경). Spring Security 미도입(경량). 슬라이스 테스트 4건 + 기존 @WebMvcTest에 `@Import(JwtService.class)` 보정. 학습자료 11장 갱신. 테스트 103건 통과 | 완료 |
 | 2026-07-16 | **Phase 1 완료**: 채팅 HTTP 계층. `com.malssumbeot.api` 신규 — `ChatRequest`/`ChatResponse` DTO, `ChatController`(`POST /api/chat`). sessionId 바디 필드, 위기 우회 불가는 단일 진입점으로 보장(인터셉터 후속, 민규 결정). CLAUDE.md 컨벤션 webhook→api. @WebMvcTest 3 + 위기 E2E 통합테스트 1 추가, 테스트 85건 통과 | 완료 |

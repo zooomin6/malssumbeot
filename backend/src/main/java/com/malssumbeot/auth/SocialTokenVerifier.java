@@ -9,7 +9,7 @@ import com.malssumbeot.user.AuthProvider;
 public interface SocialTokenVerifier {
 
     /** 이 검증기가 담당하는 제공자. AuthService가 제공자→검증기 매핑을 만들 때 쓴다. */
-    AuthProvider provider();
+    AuthProvider provider(); //이런 메서드를 반드시 만들어라라는 약속 , 인터페이스
 
     SocialUser verify(String token);
 }

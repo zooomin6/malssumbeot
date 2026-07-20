@@ -33,7 +33,7 @@ public class KakaoTokenVerifier implements SocialTokenVerifier {
     }
 
     @Override
-    public AuthProvider provider() {
+    public AuthProvider provider() {//SocialTokenVerifier 인터페이스의 provider() 메서드를 구현하여 이 검증기가 담당하는 제공자를 반환합니다. 이 경우, 카카오 토큰 검증기이므로 AuthProvider.KAKAO을 반환합니다.
         return AuthProvider.KAKAO;
     }
 

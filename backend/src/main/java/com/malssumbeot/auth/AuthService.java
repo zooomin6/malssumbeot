@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
 
-    private final Map<AuthProvider, SocialTokenVerifier> verifiers = new EnumMap<>(AuthProvider.class);
+    private final Map<AuthProvider, SocialTokenVerifier> verifiers = new EnumMap<>(AuthProvider.class); //Map 내부에 key: GOOGLE / value: SocialTokenVerifier 구현체
     private final UserRepository userRepository;
     private final JwtService jwtService;
 

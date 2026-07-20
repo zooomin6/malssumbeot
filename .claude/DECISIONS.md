@@ -232,6 +232,25 @@
   JwtService, AuthController(`POST /api/auth/{provider}`), 인증 DTO. 카카오 콘솔은 Client Secret·
   Redirect URI 등록 불필요(플랫폼 키해시/번들ID는 RN 앱 생성 시). 외부 키는 사람 승인 항목이라 .env로 관리.
 
+### D-023. JWT 인증 배선: HandlerInterceptor(경량) + 신원 모델 A(sessionId 공존)
+- 날짜: 2026-07-20 (민규 결정)
+- 배경: D-022로 로그인 시 자체 JWT를 발급하지만 이를 검사하는 곳이 없어 `/api/chat`이 무인증 상태.
+  (1) 검사 메커니즘, (2) 인증 신원과 기존 바디 `sessionId`의 관계 두 가지를 정해야 했음.
+- 결정:
+  (1) **메커니즘 = HandlerInterceptor**. Spring Security 미도입(현 프로젝트에 없고 엔드포인트 한둘
+      보호에 과함). `WebConfig`가 `/api/**` 보호 + `/api/auth/**` 제외로 배선. 401은 기존
+      `@ResponseStatus` 예외 패턴 재사용(`UnauthenticatedException`). `JwtService.parse`를 그대로 호출.
+  (2) **신원 모델 = A(공존)**. 바디 `sessionId`는 그대로 두고(위기 sticky 로직 무변경), JWT는
+      "유효한 회원만 통과" 게이트로만 사용. 인증된 userId는 request 속성(`authUserId`)에 실어
+      다운스트림(대화 이력)용으로 확보하되 현재 `ChatController`는 미변경.
+- 이유: 최소·비파괴 변경(단순함 우선, 외과수술적 변경). 위기 로직·DTO·앱 계약을 안 건드림.
+  대안 B(sessionId→userId 통일)는 위기 sticky 의미 변화·다기기 sticky 공유·DTO 파괴가 있어 보류.
+- 매 요청 검사가 정상인 이유: HTTP 무상태 → 로그인 이후 매 요청이 토큰으로 신원 증명. `parse`는
+  서명 대조(HMAC)만 하는 순수 연산(DB·네트워크·저장 없음)이라 세션 저장 방식보다 오히려 메모리 부담이 없음.
+- 영향: `auth.JwtAuthInterceptor`·`auth.UnauthenticatedException`·`api.WebConfig`(신규). 전역
+  인터셉터가 모든 `@WebMvcTest` 슬라이스에 로드돼 `JwtService`를 요구 → 슬라이스 테스트는
+  `@Import(JwtService.class)` 필요(AuthControllerTest·ChatControllerTest에 반영). 테스트 103건 통과.
+
 ## 재검토 요청
 
 (없음)
