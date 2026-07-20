@@ -6,11 +6,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.malssumbeot.auth.JwtService;
 import com.malssumbeot.orchestrator.ClaudeChat;
+import com.malssumbeot.user.AuthProvider;
+import com.malssumbeot.user.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,9 +33,14 @@ class ChatApiIntegrationTest {
     @MockitoBean
     private ClaudeChat claudeChat;
 
+    @Autowired
+    private JwtService jwtService;
+
     @Test
     void 위기_메시지는_HTTP_경로에서도_모델없이_위기_프로토콜로_응답한다() throws Exception {
+        String token = jwtService.issue(new User(AuthProvider.GOOGLE, "pid-1", null, null));
         mockMvc.perform(post("/api/chat")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"sessionId\":\"s1\",\"message\":\"죽고 싶어\"}"))
                 .andExpect(status().isOk())

@@ -18,6 +18,7 @@
 | 08 | [개역한글 본문 확보 — 저작권 조사와 스크래핑](08-bible-text-sourcing.md) | 저작권 실사, 프로토타입 후 이식, DOM 기반 파싱, 데이터 검증 | 서버개발 + 법무 리스크 검토 |
 | 09 | [파이프라인 메서드 호출 트리](09-pipeline-call-tree.md) | `handle()`부터 구절 검증까지 호출 흐름 추적 | AI개발 |
 | 10 | [채팅 HTTP 계층 — `POST /api/chat`](10-http-api-layer.md) | DTO 분리, 단일 진입점으로 위기 우회불가, 슬라이스 vs 통합 테스트 | 서버개발 |
+| 11 | [소셜 로그인 — OAuth 방식 A와 JWT](11-social-login-auth.md) | 제공자 토큰 검증, 전략 패턴, upsert, JWT 발급, 호출 트리 | 서버개발 + AI개발 |
 
 ## 이 프로젝트에서 배울 수 있는 큰 그림
 

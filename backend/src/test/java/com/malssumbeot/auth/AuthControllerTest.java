@@ -10,12 +10,18 @@ import com.malssumbeot.user.AuthProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** 컨트롤러 슬라이스: 제공자 경로 매핑·입력 검증만 검증한다 (AuthService는 모킹). */
+/**
+ * 컨트롤러 슬라이스: 제공자 경로 매핑·입력 검증만 검증한다 (AuthService는 모킹).
+ * 전역 인증 인터셉터(WebConfig)가 슬라이스에 로드되며 JwtService에 의존하므로 임포트한다 —
+ * {@code /api/auth/**}는 인터셉터 제외 경로라 인증 검사는 돌지 않는다.
+ */
 @WebMvcTest(AuthController.class)
+@Import(JwtService.class)
 class AuthControllerTest {
 
     @Autowired

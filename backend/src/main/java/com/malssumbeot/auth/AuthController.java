@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 소셜 로그인 엔드포인트 (방식 A, D-022). {@code POST /api/auth/{provider}} — provider는 google|kakao.
  * 앱이 받은 제공자 토큰을 바디로 보내면 검증 후 우리 자체 JWT를 돌려준다.
  */
-@RestController
+@RestController //Controller + ResponseBody : 리턴 시 json으로 변환
 @RequestMapping("/api/auth")
 public class AuthController {
 
