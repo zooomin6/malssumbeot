@@ -217,6 +217,21 @@
   사람 승인 항목이라 프롬프트 작업 시 반영. 성명표시권(D-016)·개인정보처리방침 문구도 앱명 반영 필요.
 - 영향: 스토어/콘솔 앱명, 향후 프롬프트의 봇 자기지칭, CLAUDE.md 제품 개요.
 
+### D-022. 소셜 로그인 방식: 토큰 검증형(방식 A) — 백엔드는 제공자 토큰을 검증만, 자체 JWT 발급
+- 날짜: 2026-07-20 (민규 결정)
+- 배경: MVP 클라이언트가 RN(Expo) 모바일 앱(D-002). OAuth를 (A) 토큰 검증형 vs (B) 서버 리다이렉트형
+  중 선택. B는 웹 브라우저 앱용이라 네이티브 앱에선 커스텀 스킴 딥링크 리다이렉트를 억지로 끼워야 함.
+- 결정: **방식 A** 채택. 흐름 = 앱이 구글/카카오 SDK로 제공자 토큰 획득 → 백엔드로 전송 →
+  백엔드가 토큰 진위 검증 → `UserRepository.findByProviderAndProviderId`로 User 조회/생성(upsert) →
+  **우리 자체 JWT 발급**. 이후 앱은 우리 JWT로 모든 API에 접속(제공자 토큰은 로그인 순간 1회만 사용).
+  검증 방법: 구글=ID 토큰(JWT) 서명·audience 검증, 카카오=액세스 토큰으로 사용자정보 API 호출.
+- 이유: (1) 모바일 네이티브 로그인 표준, (2) 백엔드에 리다이렉트/콜백 처리 없음 → 단순,
+  (3) 카카오 Client Secret·Redirect URI 불필요 → 콘솔 설정 간소, (4) 사용자 비밀번호를 우리가 안 봄,
+  (5) 기존 `User(provider, providerId)` 유니크 구조와 정확히 부합.
+- 영향: `com.malssumbeot.auth`(신규) — 제공자별 TokenVerifier(인터페이스, 테스트는 mock), AuthService,
+  JwtService, AuthController(`POST /api/auth/{provider}`), 인증 DTO. 카카오 콘솔은 Client Secret·
+  Redirect URI 등록 불필요(플랫폼 키해시/번들ID는 RN 앱 생성 시). 외부 키는 사람 승인 항목이라 .env로 관리.
+
 ## 재검토 요청
 
 (없음)

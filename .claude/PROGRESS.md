@@ -31,7 +31,8 @@
 ### DTO
 - [x] [chat] 채팅 요청/응답 DTO 설계 (2026-07-16, `com.malssumbeot.api`): `ChatRequest`(sessionId·message
       @NotBlank), `ChatResponse`(ChatReply→API, passages를 구조화 Verse 리스트로 노출, D-003 유지)
-- [ ] [auth] 로그인 요청/응답 DTO 설계
+- [x] [auth] 로그인 요청/응답 DTO 설계 (2026-07-20, `com.malssumbeot.auth`): `LoginRequest`(token @NotBlank),
+      `LoginResponse`(accessToken=자체 JWT, provider, nickname, email — 동의 범위 따라 null 가능)
 
 ### Service
 - [x] [bible] BibleVerseService: 구절 주소 파싱(풀네임/약어/범위/장절 표기) → DB 원문 조회 +
@@ -63,7 +64,10 @@
 - [x] [chat] 채팅 REST API 엔드포인트 (2026-07-16): `ChatController` `POST /api/chat` → `ChatOrchestrator.handle`.
       단일 진입점이 위기 우회 불가를 보장(handle이 위기 우선). @WebMvcTest 슬라이스(매핑·검증) +
       @SpringBootTest 통합테스트(위기 E2E, 모델 미호출)
-- [ ] [auth] 인증 엔드포인트 (카카오/구글/Apple 소셜 로그인)
+- [x] [auth] 인증 엔드포인트 (2026-07-20, D-022 방식 A): `AuthController` `POST /api/auth/{provider}`(google|kakao)
+      → `AuthService`(제공자 토큰 검증 → User upsert → JWT 발급). 제공자별 `SocialTokenVerifier`(GoogleTokenVerifier=
+      구글 라이브러리로 ID토큰 검증, KakaoTokenVerifier=사용자정보 API 호출), `JwtService`(jjwt). 애플은 미구현(400).
+      `/api/chat`에 JWT 인증 배선은 후속. 테스트 98건 통과
 
 ### Filter / Interceptor
 - [~] [crisis] 위기 우회 불가 배선: 2026-07-16 인터셉터 대신 **단일 진입점**으로 보장(민규 결정 — 인터셉터는
@@ -98,7 +102,8 @@
 
 ## 진행 중
 
-- [ ] (없음 — Phase 1 완료. 다음: Phase 2 인증 & 사용자 — User 엔티티/소셜 로그인/대화 이력)
+- [ ] (없음 — Phase 2 소셜 로그인 엔드포인트 완료. 다음 후보: `/api/chat` JWT 보호, 대화 이력 저장(법률검토 대기),
+  CrisisSessionStore 영속화, 또는 Phase 3 모바일)
 
 ## 모바일 다음 작업 (React Native + Expo)
 1. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
@@ -184,4 +189,5 @@ CLAUDE.md의 DoD 체크리스트 참조. 전부 충족 시 베타 배포 보고.
 | 2026-07-02 | 개역한글 텍스트 소스 확정(대한성서공회 공식 성경읽기 페이지, D-016) + `BibleTextScraper`(Jsoup) 신규 작성 → TSV 생성 → 기존 임포터로 31,102절 DB 적재, 검증 완료. `BibleBookCatalog`에 영문 코드 해석 추가. 브랜치 `feature/bible-text-import` | 완료 |
 | 2026-07-12 | 장 단위 인용 검증 보강: `시편 23편`·`눅 15장` 스캔 및 chapterCount 검증 추가. 존재하지 않는 장은 재생성·제거 경로로 처리. 모델이 성경 주소와 함께 생성한 본문·풀이는 모두 제거하고 DB 원문만 별도 전달(D-017). 위기는 고정 연락처 안내로 결정론 처리, 영어 장절도 환각 후보로 감지. 테스트 76건 통과. 브랜치 `feature/verse-reference-validation` | 완료 |
 | 2026-07-15 | **Phase 0 완료**: 프롬프트 5건 승인·반영(daily-chat/out-of-scope 본문, 위기 escape hatch, T2 회복규칙, T7 로또경계), 환각 폴백 문구 승인, crisis-patterns 수정없음 확정. 위기 sticky를 단계 하강(HIGH→MID→LOW→해제, 90분)으로 재설계 + MID/LOW 문구 2종(D-020, Model 2). 성경 DB 적재 확인(31,102절). 인라인 신학 검사: 프롬프트 PASS, 위기 경로 조건부 PASS(severity high, 전문가 검토 권장). 테스트 81건 통과. 브랜치 `feature/crisis-response-branching` | 완료 |
+| 2026-07-20 | **Phase 2 소셜 로그인**: 방식 A(토큰 검증형, D-022) 결정. `com.malssumbeot.auth` 신규 — `POST /api/auth/{provider}`(google/kakao), 제공자별 TokenVerifier(구글 ID토큰·카카오 사용자정보 API) + JwtService(jjwt) + AuthService(User upsert). 카카오 개발자 콘솔 앱 등록(엠마오, 이메일은 비즈앱 전까지 미수집). 의존성 jjwt·google-api-client 추가. 테스트 98건 통과. 브랜치 `feature/oauth-login` | 완료 |
 | 2026-07-16 | **Phase 1 완료**: 채팅 HTTP 계층. `com.malssumbeot.api` 신규 — `ChatRequest`/`ChatResponse` DTO, `ChatController`(`POST /api/chat`). sessionId 바디 필드, 위기 우회 불가는 단일 진입점으로 보장(인터셉터 후속, 민규 결정). CLAUDE.md 컨벤션 webhook→api. @WebMvcTest 3 + 위기 E2E 통합테스트 1 추가, 테스트 85건 통과 | 완료 |
