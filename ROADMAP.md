@@ -58,7 +58,9 @@
 - [x] [코드] `/api/chat` JWT 인증 배선 — 2026-07-20 완료(D-023). `JwtAuthInterceptor`(HandlerInterceptor)+`WebConfig`가
       `/api/**` 보호·`/api/auth/**` 제외. 헤더 JWT를 `JwtService.parse`로 검증(실패=401 `UnauthenticatedException`).
       신원 모델 A(sessionId 공존, 위기 로직 무변경). Spring Security 미도입(경량). 테스트 103건 통과
-- [ ] [코드] 대화 이력 저장 설계 (엔티티 + 마이그레이션) — 앱 동기화용
+- [—] [코드] 대화 이력 저장 설계 (엔티티 + 마이그레이션) — **MVP 범위 밖 결정(D-024)**. MVP는 세션 내
+      개인화만, DB 저장 안 함(위기 대응은 CrisisSessionStore가 담당해 저장 불필요). 앱 전용 출시라 기기
+      동기화 후순위. 향후 추가 시 저장 범위·미성년자/나이 정책·개인정보처리방침 재검토
 - [ ] [코드] `CrisisSessionStore` 인메모리 → Redis/DB 이전 검토 (영속화·다중 서버)
 
 ## Phase 3 — 모바일 앱 (React Native + Expo)
