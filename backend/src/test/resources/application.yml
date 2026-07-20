@@ -21,3 +21,11 @@ malssumbeot:
     casual-model: claude-haiku-4-5
   crisis:
     sticky-duration: 30m
+  auth:
+    google:
+      client-id: test-google-client-id
+    kakao:
+      user-info-uri: https://kapi.kakao.com/v2/user/me
+    jwt:
+      secret: test-secret-key-that-is-at-least-32-bytes-long
+      ttl: P30D
