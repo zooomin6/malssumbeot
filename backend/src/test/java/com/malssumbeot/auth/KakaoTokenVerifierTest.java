@@ -69,4 +69,15 @@ class KakaoTokenVerifierTest {
         assertThatThrownBy(() -> verifier.verify("bad-token"))
                 .isInstanceOf(InvalidSocialTokenException.class);
     }
+
+    @Test
+    void 카카오_서버_장애는_제공자_장애_예외로_변환한다() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(URI)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        KakaoTokenVerifier verifier = new KakaoTokenVerifier(builder, URI);
+
+        assertThatThrownBy(() -> verifier.verify("tok"))
+                .isInstanceOf(SocialProviderUnavailableException.class);
+    }
 }

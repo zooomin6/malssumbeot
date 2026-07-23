@@ -30,6 +30,15 @@ public enum Intent {
         return label;
     }
 
+    /**
+     * 신앙 근거(성경 구절)가 필요한 인텐트인지 — 옵션B 그라운딩 파이프라인(1단계 주소 제안) 대상 여부
+     * (D-025). ModelRouter의 faithModel 라우팅 대상 중 CRISIS는 위기 분기로 빠져 generate()에
+     * 도달하지 않으므로 제외한다.
+     */
+    public boolean requiresGrounding() {
+        return this == COUNSELING || this == PRAYER || this == KNOWLEDGE_QA;
+    }
+
     public static Optional<Intent> fromLabel(String label) {
         if (label == null) {
             return Optional.empty();

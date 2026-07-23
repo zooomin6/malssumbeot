@@ -28,7 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * {@code /api/chat}은 JWT 인증 게이트 뒤라, 요청마다 유효한 토큰을 실어 게이트를 통과시킨 뒤 매핑을 본다.
  */
 @WebMvcTest(ChatController.class)
-@Import(JwtService.class)
+@Import({JwtService.class, RateLimitConfig.class})
 class ChatControllerTest {
 
     @Autowired

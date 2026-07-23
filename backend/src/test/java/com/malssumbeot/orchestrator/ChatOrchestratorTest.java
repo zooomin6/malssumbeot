@@ -22,11 +22,6 @@ import com.malssumbeot.crisis.CrisisFilter;
 import com.malssumbeot.crisis.CrisisSessionStore;
 import com.malssumbeot.prompt.PromptAssembler;
 import com.malssumbeot.prompt.PromptRepository;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -34,25 +29,26 @@ class ChatOrchestratorTest {
 
     private static final String FAITH_MODEL = "sonnet-test";
     private static final String CASUAL_MODEL = "haiku-test";
+    private static final String PROPOSAL_MODEL = "haiku-proposal-test";
 
     private final ClaudeChat claudeChat = mock(ClaudeChat.class);
     private final IntentClassifier classifier = mock(IntentClassifier.class);
     private final BibleVerseRepository verseRepository = mock(BibleVerseRepository.class);
 
     private final VerseReferenceParser parser = new VerseReferenceParser(BibleTestFixtures.catalog());
-    private final MutableClock clock = new MutableClock();
     private final CrisisFilter crisisFilter = new CrisisFilter(
             new CrisisDetector(List.of("제3자위기\t(친구|동생).{0,10}(죽고싶|자해)",
                     "자살자해직접\t죽고싶", "학대\t폭행")),
-            new CrisisSessionStore(Duration.ofMinutes(30), clock));
+            new CrisisSessionStore());
 
     private final ChatOrchestrator orchestrator = new ChatOrchestrator(
             crisisFilter, classifier,
-            new PromptAssembler(new PromptRepository()),
+            new PromptAssembler(new PromptRepository()), new PromptRepository(),
             new ModelRouter(FAITH_MODEL, CASUAL_MODEL),
             claudeChat,
             new VerseReferenceScanner(parser),
-            new BibleVerseService(parser, verseRepository));
+            new BibleVerseService(parser, verseRepository),
+            PROPOSAL_MODEL);
 
     @Test
     void 위기_메시지는_분류를_거치지_않고_위기_프로토콜로_간다() {
@@ -76,8 +72,6 @@ class ChatOrchestratorTest {
     @Test
     void 분류기의_위기_판정도_세션을_위기_상태로_만든다() {
         when(classifier.classify("이제 아무 의미가 없는 것 같아")).thenReturn(Intent.CRISIS);
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
-                .thenReturn("혼자가 아니에요. 109에서 지금 이야기할 수 있어요.");
 
         ChatReply first = orchestrator.handle("s1", "이제 아무 의미가 없는 것 같아");
         assertThat(first.crisis()).isTrue();
@@ -86,6 +80,7 @@ class ChatOrchestratorTest {
         ChatReply second = orchestrator.handle("s1", "내일 면접 기도문 써줘");
         assertThat(second.crisis()).isTrue();
         verify(classifier, times(1)).classify(anyString());
+        verifyNoInteractions(claudeChat);
     }
 
     @Test
@@ -119,139 +114,115 @@ class ChatOrchestratorTest {
     }
 
     @Test
-    void 위기_강도가_내려오면_연락처_반복_없이_곁을_지키는_문구로_전환된다() {
-        orchestrator.handle("s1", "죽고 싶어"); // HIGH — 연락처 포함
-        clock.advanceSeconds(31 * 60); // 유지 시간 1단위 경과 → MID
+    void 위기_직후_한_번은_평범해도_위기_문구를_유지하고_그_다음부터는_새_요청대로_처리한다() {
+        orchestrator.handle("s1", "죽고 싶어"); // 위기 신호
 
-        ChatReply mid = orchestrator.handle("s1", "밥은 먹었어"); // 평범한 메시지, sticky MID
+        ChatReply second = orchestrator.handle("s1", "밥은 먹었어"); // sticky 1회 소비(D-026)
+        assertThat(second.crisis()).isTrue();
 
-        assertThat(mid.crisis()).isTrue();
-        assertThat(mid.text()).doesNotContain("109").doesNotContain("1577-0199");
-        assertThat(mid.text()).contains("여기 있");
-        verifyNoInteractions(claudeChat);
+        when(classifier.classify(anyString())).thenReturn(Intent.DAILY_CHAT);
+        when(claudeChat.complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("오늘도 평안하시길요!");
+
+        ChatReply third = orchestrator.handle("s1", "오늘 날씨 어때?"); // sticky 이미 소비됨
+
+        assertThat(third.crisis()).isFalse();
+        assertThat(third.text()).isEqualTo("오늘도 평안하시길요!");
     }
 
     @Test
-    void 상담_흐름은_구절을_DB로_검증해_원문을_첨부한다() {
+    void 상담_흐름은_1단계에서_검증된_구절_원문을_보고_코멘트를_생성한다() {
         when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), contains("<mode>상담</mode>"), anyString()))
-                .thenReturn("마음이 많이 무거우셨겠어요. 빌립보서 4:6-7 말씀을 함께 읽어보면 어떨까요.");
+        when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("빌립보서 4:6-7");
         when(verseRepository.findByBookIdAndChapterAndVerseBetweenOrderByVerseAsc(50, 4, 6, 7))
                 .thenReturn(List.of(
                         new BibleVerse(50, 4, 6, "(테스트 본문 6절)"),
                         new BibleVerse(50, 4, 7, "(테스트 본문 7절)")));
+        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), contains("<bible_verses>"), anyString()))
+                .thenReturn("마음이 많이 무거우셨겠어요. 빌립보서 4:6-7 말씀을 함께 읽어보면 어떨까요.");
 
         ChatReply reply = orchestrator.handle("s1", "요즘 너무 불안해");
 
         assertThat(reply.crisis()).isFalse();
+        // P0-3 핵심: 검증된 구절이 있어도 모델의 공감 코멘트가 삭제되지 않고 그대로 남는다
+        assertThat(reply.text()).contains("마음이 많이 무거우셨겠어요");
         assertThat(reply.passages()).hasSize(1);
         assertThat(reply.passages().get(0).reference()).isEqualTo("빌립보서 4:6-7");
         assertThat(reply.unverifiedReferences()).isEmpty();
     }
 
     @Test
-    void 검증된_절과_함께_모델이_생성한_본문은_제거하고_DB_원문만_첨부한다() {
+    void 신앙_인텐트인데_검증된_구절이_없으면_인용금지_안내를_담아_생성한다() {
         when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
-                .thenReturn("빌립보서 4:6-7은 가짜 본문이라고 말합니다. 마음을 조금 쉬게 해주세요.");
-        when(verseRepository.findByBookIdAndChapterAndVerseBetweenOrderByVerseAsc(50, 4, 6, 7))
-                .thenReturn(List.of(
-                        new BibleVerse(50, 4, 6, "(테스트 본문 6절)"),
-                        new BibleVerse(50, 4, 7, "(테스트 본문 7절)")));
+        when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("");
+        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), contains("단정적 표현을 쓰지 마세요"), anyString()))
+                .thenReturn("그 마음 충분히 이해돼요. 곁에서 함께 하고 있을게요.");
 
-        ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
+        ChatReply reply = orchestrator.handle("s1", "그냥 이런저런 얘기가 하고 싶어");
 
-        assertThat(reply.text()).isEmpty();
-        assertThat(reply.passages()).hasSize(1);
+        assertThat(reply.text()).isEqualTo("그 마음 충분히 이해돼요. 곁에서 함께 하고 있을게요.");
+        assertThat(reply.passages()).isEmpty();
     }
 
     @Test
-    void 존재하는_장_단위_인용과_모델_본문은_함께_제거한다() {
+    void 제공되지_않은_구절_주소는_그_부분만_제거하고_나머지_코멘트는_남긴다() {
         when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
+        when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("");
         when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
-                .thenReturn("시편 23편은 가짜 본문이라고 말합니다. 지금 마음을 천천히 돌봐주세요.");
+                .thenReturn("시편 23편도 함께 읽어보시면 좋겠어요. 지금 마음을 천천히 돌봐주세요.");
 
         ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
 
-        assertThat(reply.unverifiedReferences()).isEmpty();
+        assertThat(reply.text()).doesNotContain("시편 23편");
+        assertThat(reply.text()).contains("지금 마음을 천천히 돌봐주세요");
+        assertThat(reply.unverifiedReferences()).containsExactly("시편 23편");
         assertThat(reply.passages()).isEmpty();
-        assertThat(reply.text()).isEqualTo(ChatOrchestrator.HALLUCINATION_FALLBACK_TEXT);
-        assertThat(reply.text()).doesNotContain("시편 23편").doesNotContain("가짜 본문");
+    }
+
+    @Test
+    void 검증되지_않는_영어_성경_주소는_그_부분만_제거한다() {
+        when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
+        when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("");
+        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("John 3:16 말씀처럼, 마음을 조금 쉬게 해주세요.");
+
+        ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
+
+        assertThat(reply.text()).doesNotContain("John 3:16");
+        assertThat(reply.text()).contains("마음을 조금 쉬게 해주세요");
         verify(claudeChat, times(1)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
     }
 
     @Test
-    void 존재하지_않는_장_단위_인용은_재생성한다() {
-        when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
-                .thenReturn("요한복음 99장을 읽어보세요.")
-                .thenReturn("함께 기도하는 마음으로 곁에 있을게요.");
-
-        ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
-
-        assertThat(reply.unverifiedReferences()).isEmpty();
-        assertThat(reply.text()).doesNotContain("요한복음 99장");
-        verify(claudeChat, times(2)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
-        verify(claudeChat).complete(eq(FAITH_MODEL), anyInt(), anyString(), contains("요한복음 99장"));
-    }
-
-    @Test
-    void 영어_성경_주소는_검증되지_않으면_재생성한다() {
-        when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
-                .thenReturn("John 3:16은 가짜 본문이라고 말합니다.")
-                .thenReturn("함께 마음을 돌봐주세요.");
-
-        ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
-
-        assertThat(reply.text()).doesNotContain("John 3:16").doesNotContain("가짜 본문");
-        verify(claudeChat, times(2)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
-        verify(claudeChat).complete(eq(FAITH_MODEL), anyInt(), anyString(), contains("John 3:16"));
-    }
-
-    @Test
-    void 환각_구절이_나오면_피드백과_함께_1회_재생성한다() {
-        when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
+    void 존재하지_않는_구절_주소는_그_부분만_제거하고_미검증_목록으로_남긴다() {
+        when(classifier.classify(anyString())).thenReturn(Intent.KNOWLEDGE_QA);
+        when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("");
         // 빌립보서는 4장까지 — 9:9는 존재하지 않는 구절 (T8 시나리오)
         when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
-                .thenReturn("빌립보서 9:9 말씀처럼 평안을 빕니다.")
-                .thenReturn("마음을 알아드려요. 함께 기도하는 마음으로 곁에 있을게요.");
+                .thenReturn("빌립보서 9:9 말씀처럼 평안을 빕니다.");
 
-        ChatReply reply = orchestrator.handle("s1", "요즘 너무 불안해");
+        ChatReply reply = orchestrator.handle("s1", "평안이 뭘까요");
 
-        assertThat(reply.unverifiedReferences()).isEmpty();
         assertThat(reply.text()).doesNotContain("빌립보서 9:9");
-        verify(claudeChat, times(2)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
-        verify(claudeChat).complete(eq(FAITH_MODEL), anyInt(), anyString(), contains("빌립보서 9:9"));
-    }
-
-    @Test
-    void 재생성에도_환각이_남으면_본문에서_제거하고_미검증_목록으로_보고한다() {
-        when(classifier.classify(anyString())).thenReturn(Intent.KNOWLEDGE_QA);
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
-                .thenReturn("요한복음 99:1을 보세요.")
-                .thenReturn("죄송해요, 요한복음 99:1은 없는 구절이에요.");
-
-        ChatReply reply = orchestrator.handle("s1", "요한복음 99장 읽어줘");
-
-        // 환각 주소는 사용자에게 가는 본문에서 제거되어야 한다 (T8 거부 기준)
-        assertThat(reply.text()).doesNotContain("요한복음 99:1");
-        // 모니터링·QA를 위해 미검증 목록에는 남는다
-        assertThat(reply.unverifiedReferences()).containsExactly("요한복음 99:1");
+        assertThat(reply.unverifiedReferences()).containsExactly("빌립보서 9:9");
         assertThat(reply.passages()).isEmpty();
+        verify(claudeChat, times(1)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
     }
 
     @Test
-    void 본문이_전부_환각_문장이면_폴백_문구로_대체한다() {
-        when(classifier.classify(anyString())).thenReturn(Intent.KNOWLEDGE_QA);
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
-                .thenReturn("요한복음 99:1을 보세요.")
-                .thenReturn("요한복음 99:1을 보세요.");
+    void 신앙_근거가_필요없는_인텐트는_구절_제안_단계를_거치지_않는다() {
+        when(classifier.classify(anyString())).thenReturn(Intent.DAILY_CHAT);
+        when(claudeChat.complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString()))
+                .thenReturn("오늘 하루도 평안하시길요!");
 
-        ChatReply reply = orchestrator.handle("s1", "요한복음 99장 읽어줘");
+        orchestrator.handle("s1", "안녕!");
 
-        assertThat(reply.text()).isEqualTo(ChatOrchestrator.HALLUCINATION_FALLBACK_TEXT);
-        assertThat(reply.text()).doesNotContain("요한복음 99:1");
+        verify(claudeChat, times(0)).complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString());
     }
 
     @Test
@@ -264,30 +235,5 @@ class ChatOrchestratorTest {
 
         assertThat(reply.intent()).isEqualTo(Intent.OUT_OF_SCOPE);
         verify(claudeChat).complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString());
-    }
-
-    /** 위기 sticky 강도 하강(D-020)을 검증하기 위해 시간을 임의로 흘릴 수 있는 시계. */
-    private static final class MutableClock extends Clock {
-
-        private Instant now = Instant.parse("2026-07-15T00:00:00Z");
-
-        void advanceSeconds(long seconds) {
-            now = now.plusSeconds(seconds);
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
     }
 }

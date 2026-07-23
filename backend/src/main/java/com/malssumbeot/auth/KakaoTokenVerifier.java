@@ -6,12 +6,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
  * 카카오 액세스 토큰 검증. 토큰으로 카카오 사용자 정보 API를 호출하며, 토큰이 유효하지 않으면
  * 카카오가 4xx로 거부한다(→ 예외). Client Secret은 필요 없다 (방식 A, D-022).
+ *
+ * 4xx(실제 무효 토큰)와 그 외 실패(5xx·타임아웃·연결 불가 등 카카오 서버 장애)를 구분한다 —
+ * 후자는 토큰과 무관한 일시적 상황이라 401이 아닌 503으로 응답한다.
  *
  * 이메일은 비즈앱 전환 전에는 내려오지 않아 null일 수 있다. 닉네임은 kakao_account.profile 우선,
  * 없으면 properties에서 찾는다 (동의 범위·응답 형태에 따라 위치가 다름).
@@ -46,8 +50,10 @@ public class KakaoTokenVerifier implements SocialTokenVerifier {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                     .retrieve()
                     .body(MAP_TYPE);
-        } catch (RestClientException e) {
+        } catch (HttpClientErrorException e) {
             throw new InvalidSocialTokenException("카카오 토큰 검증에 실패했습니다.", e);
+        } catch (RestClientException e) {
+            throw new SocialProviderUnavailableException("카카오 인증 서버에 일시적으로 연결할 수 없습니다.", e);
         }
         if (body == null || body.get("id") == null) {
             throw new InvalidSocialTokenException("유효하지 않은 카카오 토큰입니다.");

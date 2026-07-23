@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 개역한글 본문 TSV 적재기. bible-import 프로파일에서만 활성화된다.
@@ -25,6 +26,9 @@ import org.springframework.stereotype.Component;
  *
  * 주의: 적재할 텍스트 파일은 반드시 출처가 검증된 개역한글(1961)이어야 한다 (D-001).
  * 소스 확정은 PROGRESS.md "사람 확인 필요" 항목.
+ *
+ * run() 전체를 하나의 트랜잭션으로 묶는다 — 파일 중간(예: 501번째 줄)에서 파싱이 실패해도
+ * 이미 저장된 앞부분 배치까지 함께 롤백되어, 부분 적재 상태로 남지 않는다.
  */
 @Component
 @Profile("bible-import")
@@ -45,6 +49,7 @@ public class BibleTextImporter implements CommandLineRunner {
     }
 
     @Override
+    @Transactional
     public void run(String... args) throws IOException {
         if (importFile == null || importFile.isBlank()) {
             throw new IllegalStateException(

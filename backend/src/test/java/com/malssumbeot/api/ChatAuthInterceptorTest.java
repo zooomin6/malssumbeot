@@ -28,7 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 닿지도 않는다. 실제 {@link JwtService}를 임포트해(비밀키 미설정 → 임시 키) 토큰을 발급·검증한다.
  */
 @WebMvcTest(ChatController.class)
-@Import(JwtService.class)
+@Import({JwtService.class, RateLimitConfig.class})
 class ChatAuthInterceptorTest {
 
     @Autowired

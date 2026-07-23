@@ -27,4 +27,14 @@ class IntentTest {
         assertThat(Intent.fromLabel("")).isEmpty();
         assertThat(Intent.fromLabel(null)).isEmpty();
     }
+
+    @Test
+    void 상담_기도문_지식QA만_신앙_근거가_필요하다() {
+        assertThat(Intent.COUNSELING.requiresGrounding()).isTrue();
+        assertThat(Intent.PRAYER.requiresGrounding()).isTrue();
+        assertThat(Intent.KNOWLEDGE_QA.requiresGrounding()).isTrue();
+        assertThat(Intent.CRISIS.requiresGrounding()).isFalse();
+        assertThat(Intent.DAILY_CHAT.requiresGrounding()).isFalse();
+        assertThat(Intent.OUT_OF_SCOPE.requiresGrounding()).isFalse();
+    }
 }

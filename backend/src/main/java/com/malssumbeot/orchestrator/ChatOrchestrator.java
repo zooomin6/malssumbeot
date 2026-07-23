@@ -5,27 +5,37 @@ import com.malssumbeot.bible.VersePassage;
 import com.malssumbeot.bible.VerseReferenceScanner;
 import com.malssumbeot.crisis.CrisisCheck;
 import com.malssumbeot.crisis.CrisisFilter;
-import com.malssumbeot.crisis.CrisisLevel;
 import com.malssumbeot.crisis.CrisisSignal;
 import com.malssumbeot.prompt.PromptAssembler;
+import com.malssumbeot.prompt.PromptRepository;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 대화 파이프라인: 위기 감지 → 의도 분류 → 프롬프트 분기 → 응답 생성 → 구절 검증.
- * 이 순서는 헌법(CLAUDE.md) 컨벤션이며 변경·우회 금지.
+ * 대화 파이프라인: 위기 감지 → 의도 분류 → (신앙 인텐트만) 구절 주소 제안·DB 검증 → 프롬프트
+ * 조립 → 응답 생성 → 잔여 미검증 구절 제거. 이 순서는 헌법(CLAUDE.md) 컨벤션이며 변경·우회 금지.
  *
  * 위기 분기가 모든 로직에 우선한다 (D-004): CrisisFilter가 잡으면 분류를 건너뛰고,
  * 분류기(2차 방어선)가 위기로 판정해도 동일하게 위기 프로토콜로 간다.
+ *
+ * 성경 근거 파이프라인은 2단계 grounded 생성(옵션B, D-025)이다: 1단계에서 경량 모델에게 관련
+ * 구절 주소만 제안받아 DB로 검증하고, 검증된 원문만 2단계 시스템 프롬프트의 <bible_verses>에
+ * 실어 최종 응답을 생성한다 — 모델이 실제 원문을 보고 코멘트를 쓴다(P0-1). 검증된 구절이
+ * 없으면 PromptAssembler가 "인용하지 말라"는 안내를 대신 붙인다(P0-2). 2단계 출력에 그래도
+ * 미검증 구절이 스캔되면(모델이 기억으로 추가 언급) 그 주소만 제거하고 나머지 코멘트는
+ * 그대로 둔다 — 과거 D-017의 "주소 있으면 전체 텍스트 차단" 방식은 이 설계로 대체되었다.
  */
 @Component
 public class ChatOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(ChatOrchestrator.class);
     private static final int MAX_TOKENS = 1024;
+    private static final int PROPOSAL_MAX_TOKENS = 128;
 
     /**
      * 위기 응답의 결정론적 안전망 — 외부 모델에 의존하지 않고 항상 연락처를 전달한다.
@@ -74,87 +84,59 @@ public class ChatOrchestrator {
             여성폭력·가정폭력은 1366, 청소년이라면 1388에서 24시간 상담과 지원을 받을 수 있어요.
             가해자에게 알려지거나 더 위험해질 수 있는 행동은 피하고, 지금 가장 안전한 방법을 먼저 선택해 주세요.""";
 
-    /**
-     * 환각 구절을 모두 걷어낸 뒤 남은 본문이 없을 때의 안전 문구.
-     * 잘못된 구절을 전하지 않는 것을 우선하며, 사용자를 정죄하지 않는다. 문구는 사람 승인 대기.
-     */
-    static final String HALLUCINATION_FALLBACK_TEXT =
-            "말씀 한 구절을 정확히 확인하지 못했어요. 잘못된 구절을 전해 드리지 않으려 조심하고 있습니다. "
-                    + "조금 더 이야기를 들려주시면 함께 살펴볼게요.";
-
-    /**
-     * 위기 강도가 MID로 내려온 sticky 구간의 문구 (D-020, Model 2).
-     * 연락처를 매번 반복하지 않고 곁을 지키되, 도움을 청할 곳이 있음을 부드럽게 상기시킨다.
-     * 문구는 사람 승인 대기.
-     */
-    static final String CRISIS_MID_TEXT = """
-            조금 전 많이 힘들다고 하셨는데, 지금 마음은 어떠신가요? 저는 계속 여기 있어요.
-            빨리 괜찮아지지 않아도 괜찮습니다. 떠오르는 이야기가 있으면 무엇이든 편하게 들려주세요.
-            혹시 마음이 다시 많이 무거워지면, 언제든 도움을 청할 수 있는 곳이 있다는 것도 잊지 마세요.""";
-
-    /**
-     * 위기 강도가 LOW로 내려온 sticky 구간의 문구 (D-020, Model 2).
-     * 대화를 따뜻하게 마무리하되, 다시 힘들 때 돌아올 수 있음을 열어 둔다. 문구는 사람 승인 대기.
-     */
-    static final String CRISIS_LOW_TEXT = """
-            오늘 마음을 나눠 주셔서 고마워요. 조금이라도 숨을 돌리셨기를 바랍니다.
-            앞으로도 힘든 순간이 오면 혼자 담아두지 말고 언제든 다시 찾아와 주세요. 저는 늘 여기 있을게요.""";
-
     private final CrisisFilter crisisFilter;
     private final IntentClassifier classifier;
     private final PromptAssembler promptAssembler;
+    private final PromptRepository prompts;
     private final ModelRouter modelRouter;
     private final ClaudeChat claudeChat;
     private final VerseReferenceScanner scanner;
     private final BibleVerseService verseService;
+    private final String proposalModel;
 
     public ChatOrchestrator(CrisisFilter crisisFilter, IntentClassifier classifier,
-                            PromptAssembler promptAssembler, ModelRouter modelRouter,
-                            ClaudeChat claudeChat, VerseReferenceScanner scanner,
-                            BibleVerseService verseService) {
+                            PromptAssembler promptAssembler, PromptRepository prompts,
+                            ModelRouter modelRouter, ClaudeChat claudeChat,
+                            VerseReferenceScanner scanner, BibleVerseService verseService,
+                            @Value("${malssumbeot.anthropic.classifier-model}") String proposalModel) {
         this.crisisFilter = crisisFilter;
         this.classifier = classifier;
         this.promptAssembler = promptAssembler;
+        this.prompts = prompts;
         this.modelRouter = modelRouter;
         this.claudeChat = claudeChat;
         this.scanner = scanner;
         this.verseService = verseService;
+        this.proposalModel = proposalModel;
     }
 
     public ChatReply handle(String sessionId, String userMessage) {
         CrisisCheck check = crisisFilter.check(sessionId, userMessage);
         if (check.crisis()) {
-            // 카테고리(자살자해/학대 등)와 강도(HIGH→MID→LOW, D-020)에 따라 응답을 분기한다.
+            // 새 신호든 sticky 1회 확인(D-026)이든 카테고리(자살자해/학대 등)에 따라 응답을 분기한다.
             String category = check.signal().map(CrisisSignal::category).orElse(null);
-            return crisisReply(category, check.level());
+            return crisisReply(category);
         }
 
         Intent intent = classifier.classify(userMessage);
         if (intent == Intent.CRISIS) {
-            // 2차 방어선(LLM)의 위기 판정은 새 신호이므로 최고 강도(HIGH)로 다룬다.
+            // 2차 방어선(LLM)의 위기 판정도 sticky 1회 확인 대상으로 기록한다.
             crisisFilter.recordCrisis(sessionId);
-            return crisisReply(null, CrisisLevel.HIGH);
+            return crisisReply(null);
         }
 
         return generate(intent, userMessage);
     }
 
-    private ChatReply crisisReply(String category, CrisisLevel level) {
-        return new ChatReply(crisisText(category, level), Intent.CRISIS, true, List.of(), List.of());
+    private ChatReply crisisReply(String category) {
+        return new ChatReply(crisisText(category), Intent.CRISIS, true, List.of(), List.of());
     }
 
     /**
-     * 위기 응답 선택. 강도가 내려오면(MID/LOW) 연락처를 반복하지 않고 곁을 지키는 문구로 전환한다(D-020).
-     * HIGH일 때만 카테고리별 문구로 분기하며, '믿을 만한 사람' 권유는 자살·자해(본인) 신호에만 넣는다.
-     * 제3자 위기·학대·불명확은 각각 별도 문구로, 위험할 수 있는 권유가 섞이지 않게 한다.
+     * 위기 응답 선택. 카테고리별 문구로 분기하며, '믿을 만한 사람' 권유는 자살·자해(본인) 신호에만
+     * 넣는다. 제3자 위기·학대·불명확은 각각 별도 문구로, 위험할 수 있는 권유가 섞이지 않게 한다.
      */
-    private static String crisisText(String category, CrisisLevel level) {
-        if (level == CrisisLevel.MID) {
-            return CRISIS_MID_TEXT;
-        }
-        if (level == CrisisLevel.LOW) {
-            return CRISIS_LOW_TEXT;
-        }
+    private static String crisisText(String category) {
         if (category == null) {
             return CRISIS_DEFAULT_TEXT;
         }
@@ -172,48 +154,51 @@ public class ChatOrchestrator {
 
     private ChatReply generate(Intent intent, String userMessage) {
         String model = modelRouter.route(intent);
-        String system = promptAssembler.assemble(intent, List.of());
+        List<VersePassage> verifiedPassages = intent.requiresGrounding()
+                ? proposeVerifiedPassages(userMessage)
+                : List.of();
 
+        String system = promptAssembler.assemble(intent, verifiedPassages);
         String text = claudeChat.complete(model, MAX_TOKENS, system, userMessage);
-        Verification verification = verify(text);
 
-        if (!verification.unverified().isEmpty()) {
-            // 환각 의심(T8): 존재하지 않는 주소를 알려주고 1회 재생성
-            log.warn("검증 실패 구절 감지, 재생성: {}", verification.unverified());
-            String feedback = userMessage + "\n\n<system_note>방금 응답에 인용한 구절 주소 "
-                    + String.join(", ", verification.unverified())
-                    + " 은(는) 성경에 존재하지 않습니다. 해당 구절을 인용하지 말고, "
-                    + "존재가 확실한 구절만 주소로 제안하거나 구절 없이 다시 답해 주세요.</system_note>";
-            text = claudeChat.complete(model, MAX_TOKENS, system, feedback);
-            verification = verify(text);
-        }
-
-        // 주소와 본문이 문장 경계를 넘어 분리될 수 있어, 주소가 하나라도 있으면 모델 텍스트 전체를
-        // 보내지 않는다. 검증된 절은 passages의 DB 원문만 별도 전달한다 (D-017).
-        if (!verification.references().isEmpty()) {
-            text = verification.passages().isEmpty() ? HALLUCINATION_FALLBACK_TEXT : "";
-        }
-
-        return new ChatReply(text, intent, intent == Intent.CRISIS,
-                verification.passages(), verification.unverified());
-    }
-
-    private Verification verify(String text) {
-        List<String> references = scanner.scan(text);
-        List<VersePassage> passages = new ArrayList<>();
-        List<String> unverified = new ArrayList<>();
-        for (String reference : references) {
-            var passage = verseService.findPassage(reference);
-            if (passage.isPresent()) {
-                passages.add(passage.get());
-            } else if (!verseService.hasChapter(reference)) {
-                unverified.add(reference);
+        List<String> unverifiedReferences = new ArrayList<>();
+        String finalText = text;
+        for (String candidate : scanner.scan(text)) {
+            Optional<VersePassage> resolved = verseService.findPassage(candidate);
+            boolean alreadyProvided = resolved.isPresent()
+                    && verifiedPassages.stream().anyMatch(p -> samePassage(p, resolved.get()));
+            if (!alreadyProvided) {
+                // 1단계가 제공하지 않은 구절을 모델이 기억으로 추가 언급함 — 그 주소만 제거한다.
+                // 코멘트 전체를 버리지 않는다(D-025, D-017의 전체삭제 대체).
+                log.warn("2단계 출력에서 제공되지 않은 구절 주소 감지, 제거: {}", candidate);
+                unverifiedReferences.add(candidate);
+                finalText = finalText.replace(candidate, "");
             }
         }
-        return new Verification(List.copyOf(references), List.copyOf(passages), List.copyOf(unverified));
+
+        return new ChatReply(finalText, intent, false, verifiedPassages, List.copyOf(unverifiedReferences));
     }
 
-    private record Verification(List<String> references, List<VersePassage> passages,
-                                List<String> unverified) {
+    /**
+     * 1단계(옵션B, D-025): 경량 모델에게 사용자 메시지와 관련된 구절 주소만 제안받아 DB로
+     * 조회·검증한다. DB에 없는 후보는 조용히 버린다 — 2단계에는 검증된 것만 넘긴다.
+     */
+    private List<VersePassage> proposeVerifiedPassages(String userMessage) {
+        String proposal = claudeChat.complete(
+                proposalModel, PROPOSAL_MAX_TOKENS, prompts.verseAddressProposal(), userMessage);
+        List<VersePassage> passages = new ArrayList<>();
+        for (String line : proposal.lines().toList()) {
+            String candidate = line.strip();
+            if (!candidate.isBlank()) {
+                verseService.findPassage(candidate).ifPresent(passages::add);
+            }
+        }
+        return passages;
+    }
+
+    /** 책·장·절 범위가 같으면 같은 구절로 본다 — 모델이 조금 다른 표기로 되풀이해도 식별된다. */
+    private static boolean samePassage(VersePassage a, VersePassage b) {
+        return a.bookName().equals(b.bookName()) && a.chapter() == b.chapter()
+                && a.verseStart() == b.verseStart() && a.verseEnd() == b.verseEnd();
     }
 }

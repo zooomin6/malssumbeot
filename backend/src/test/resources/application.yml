@@ -19,8 +19,10 @@ malssumbeot:
     classifier-model: claude-haiku-4-5
     faith-model: claude-sonnet-4-6
     casual-model: claude-haiku-4-5
-  crisis:
-    sticky-duration: 30m
+  chat:
+    rate-limit:
+      max-requests: 30
+      window: 1h
   auth:
     google:
       client-id: test-google-client-id

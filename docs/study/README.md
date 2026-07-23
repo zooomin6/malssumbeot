@@ -19,6 +19,8 @@
 | 09 | [파이프라인 메서드 호출 트리](09-pipeline-call-tree.md) | `handle()`부터 구절 검증까지 호출 흐름 추적 | AI개발 |
 | 10 | [채팅 HTTP 계층 — `POST /api/chat`](10-http-api-layer.md) | DTO 분리, 단일 진입점으로 위기 우회불가, 슬라이스 vs 통합 테스트 | 서버개발 |
 | 11 | [소셜 로그인 — OAuth 방식 A와 JWT](11-social-login-auth.md) | 제공자 토큰 검증, 전략 패턴, upsert, JWT 발급, 호출 트리 | 서버개발 + AI개발 |
+| 12 | [성경 근거 파이프라인 재설계 — 검증된 원문을 "보고" 쓰게 만들기](12-grounding-pipeline-redesign.md) | grounding 미배선·미검증 우회·전체삭제 부작용 3종 세트, 2단계 생성 재설계 | AI개발 |
+| 13 | [위기 sticky 재설계와 신학 검사 4연속 반려](13-crisis-sticky-redesign-and-review-loop.md) | 시간 기반→1회성 재설계, 독립 검사가 같은 프롬프트를 4번 잡아낸 과정 | 서버개발 + AI개발 |
 
 ## 이 프로젝트에서 배울 수 있는 큰 그림
 

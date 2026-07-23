@@ -50,4 +50,22 @@ class PromptAssemblerTest {
         assertThat(prompt).contains("[빌립보서 4:6-7]");
         assertThat(prompt).contains("6 (테스트 본문)");
     }
+
+    @Test
+    void 신앙_근거가_필요한_인텐트인데_검증된_구절이_없으면_인용_금지_안내를_붙인다() {
+        for (Intent intent : List.of(Intent.COUNSELING, Intent.PRAYER, Intent.KNOWLEDGE_QA)) {
+            String prompt = assembler.assemble(intent, List.of());
+
+            assertThat(prompt).as("intent=%s", intent).contains("단정적 표현을 쓰지 마세요");
+        }
+    }
+
+    @Test
+    void 신앙_근거가_필요없는_인텐트는_검증된_구절이_없어도_안내를_붙이지_않는다() {
+        for (Intent intent : List.of(Intent.DAILY_CHAT, Intent.OUT_OF_SCOPE, Intent.CRISIS)) {
+            String prompt = assembler.assemble(intent, List.of());
+
+            assertThat(prompt).as("intent=%s", intent).doesNotContain("단정적 표현을 쓰지 마세요");
+        }
+    }
 }

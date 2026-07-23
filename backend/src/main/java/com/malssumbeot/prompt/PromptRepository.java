@@ -18,11 +18,13 @@ public class PromptRepository {
 
     private final String master;
     private final String crisis;
+    private final String verseAddressProposal;
     private final Map<Intent, String> byIntent;
 
     public PromptRepository() {
         this.master = load("master.txt");
         this.crisis = load("crisis.txt");
+        this.verseAddressProposal = load("verse-address-proposal.txt");
         Map<Intent, String> modes = new EnumMap<>(Intent.class);
         modes.put(Intent.COUNSELING, load("counseling.txt"));
         modes.put(Intent.PRAYER, load("prayer.txt"));
@@ -39,6 +41,11 @@ public class PromptRepository {
 
     public String crisis() {
         return crisis;
+    }
+
+    /** 1단계(옵션B) 구절 주소 제안 전용 프롬프트 — 인텐트와 무관하다. */
+    public String verseAddressProposal() {
+        return verseAddressProposal;
     }
 
     public String forIntent(Intent intent) {

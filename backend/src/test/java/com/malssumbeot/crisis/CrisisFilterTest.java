@@ -2,15 +2,12 @@ package com.malssumbeot.crisis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 class CrisisFilterTest {
 
-    private final CrisisTestSupport.MutableClock clock = new CrisisTestSupport.MutableClock();
     private final CrisisFilter filter = new CrisisFilter(
-            CrisisTestSupport.productionDetector(),
-            new CrisisSessionStore(Duration.ofMinutes(30), clock));
+            CrisisTestSupport.productionDetector(), new CrisisSessionStore());
 
     @Test
     void 위기_신호를_감지하면_위기로_판정한다() {
@@ -22,7 +19,7 @@ class CrisisFilterTest {
     }
 
     @Test
-    void 위기_이후의_평범한_메시지도_위기_상태를_유지한다() {
+    void 위기_직후_바로_다음_메시지_한_번은_평범해도_위기_상태를_유지한다() {
         filter.check("s1", "다 끝내고 싶어");
 
         // theology-checker 지적 시나리오: 직전 턴 위기 → 현재 턴 평범한 요청
@@ -33,25 +30,14 @@ class CrisisFilterTest {
     }
 
     @Test
-    void sticky_강도는_유지_시간마다_한_단계씩_내려간다() {
-        filter.check("s1", "다 끝내고 싶어"); // HIGH
+    void sticky는_한_번_소비되면_그_다음_메시지부터는_새_요청대로_처리된다() {
+        filter.check("s1", "다 끝내고 싶어"); // 위기 신호
+        filter.check("s1", "내일 면접 기도문 써줘"); // sticky 1회 소비(D-026)
 
-        clock.advanceSeconds(31 * 60);
-        CrisisCheck mid = filter.check("s1", "내일 면접 기도문 써줘");
-        assertThat(mid.crisis()).isTrue();
-        assertThat(mid.trigger()).isEqualTo(CrisisCheck.Trigger.STICKY);
-        assertThat(mid.level()).isEqualTo(CrisisLevel.MID);
-    }
+        CrisisCheck third = filter.check("s1", "오늘 뭐 먹을지 고민이야"); // 세 번째 메시지
 
-    @Test
-    void 유지_시간이_충분히_지나면_평범한_메시지는_위기가_아니다() {
-        filter.check("s1", "다 끝내고 싶어");
-        clock.advanceSeconds(91 * 60); // 3단위 초과 → 해제
-
-        CrisisCheck check = filter.check("s1", "내일 면접 기도문 써줘");
-
-        assertThat(check.crisis()).isFalse();
-        assertThat(check.trigger()).isEqualTo(CrisisCheck.Trigger.NONE);
+        assertThat(third.crisis()).isFalse();
+        assertThat(third.trigger()).isEqualTo(CrisisCheck.Trigger.NONE);
     }
 
     @Test
@@ -69,5 +55,16 @@ class CrisisFilterTest {
 
         assertThat(check.crisis()).isFalse();
         assertThat(check.trigger()).isEqualTo(CrisisCheck.Trigger.NONE);
+    }
+
+    @Test
+    void sticky_상태에서도_카테고리가_유지된다() {
+        filter.check("s1", "아빠가 나를 때렸어"); // 학대 신호
+
+        CrisisCheck check = filter.check("s1", "오늘 좀 그냥 힘든 얘기 하고 싶어");
+
+        assertThat(check.trigger()).isEqualTo(CrisisCheck.Trigger.STICKY);
+        assertThat(check.signal()).isPresent();
+        assertThat(check.signal().get().category()).startsWith("학대");
     }
 }

@@ -24,9 +24,11 @@ malssumbeot:
     faith-model: claude-sonnet-4-6
     # 일상 대화·범위 밖 안내
     casual-model: claude-haiku-4-5
-  crisis:
-    # 위기 신호 감지 후 세션이 위기 상태로 유지되는 시간 (sticky, D-012)
-    sticky-duration: 30m
+  chat:
+    rate-limit:
+      # 사용자별 시간당 채팅 요청 한도 (비용 폭주 방지)
+      max-requests: 30
+      window: 1h
   auth:
     # 소셜 로그인 방식 A(D-022): 앱이 받은 제공자 토큰을 검증하고 자체 JWT를 발급
     google:
