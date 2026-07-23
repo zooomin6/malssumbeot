@@ -142,9 +142,9 @@
 
 ## 진행 중
 
-- [ ] (없음 — Phase 2 소셜 로그인 + `/api/chat` JWT 보호(D-023) 완료. **대화 이력 저장은 MVP 범위 밖으로
-  결정(D-024)**. 다음 후보: CrisisSessionStore 영속화(서버 1대엔 불요), 애플 로그인(콘솔+구현),
-  또는 **Phase 3 모바일**(권장))
+- [ ] **Phase 3 모바일(RN+Expo) 착수 — 2026-07-23 시작.** RN 담당자 = 직접 개발 확정(D-027, 민규가
+  UI/UX 실무 경험 없음 → 채팅 UI 라이브러리로 디자인 결정 최소화). 다음 단계: Expo 프로젝트 스캐폴딩.
+  (참고로 남겨둔 다른 후보였던 CrisisSessionStore 영속화·애플 로그인은 서버 1대·iOS 미착수 상태라 후순위 유지)
 
 ## 모바일 다음 작업 (React Native + Expo)
 1. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
@@ -255,3 +255,4 @@ CLAUDE.md의 DoD 체크리스트 참조. 전부 충족 시 베타 배포 보고.
 | 2026-07-20 | **`/api/chat` JWT 인증 배선(D-023)**: `JwtAuthInterceptor`(HandlerInterceptor)+`WebConfig`로 `/api/**` 보호·`/api/auth/**` 제외. `UnauthenticatedException`(401). 신원 모델 A(sessionId 공존, 위기 로직 무변경). Spring Security 미도입(경량). 슬라이스 테스트 4건 + 기존 @WebMvcTest에 `@Import(JwtService.class)` 보정. 학습자료 11장 갱신. 테스트 103건 통과 | 완료 |
 | 2026-07-16 | **Phase 1 완료**: 채팅 HTTP 계층. `com.malssumbeot.api` 신규 — `ChatRequest`/`ChatResponse` DTO, `ChatController`(`POST /api/chat`). sessionId 바디 필드, 위기 우회 불가는 단일 진입점으로 보장(인터셉터 후속, 민규 결정). CLAUDE.md 컨벤션 webhook→api. @WebMvcTest 3 + 위기 E2E 통합테스트 1 추가, 테스트 85건 통과 | 완료 |
 | 2026-07-22 | **독립 코드 리뷰 후속 조치(별도 세션 리뷰 결과 반영)**: (1) **성경 근거 파이프라인 재설계(D-025)** — grounding 미배선(P0-1)·주소없는 주장 미검증(P0-2)·D-017 전체삭제 부작용(P0-3) 해소. 2단계 grounded 생성(1단계 경량 모델 주소 제안 → DB 검증 → 2단계 원문 포함 생성), 신규 `verse-address-proposal.txt`. (2) **P1/P2 코드 수정 6건**: unverifiedReferences API 노출 제거, rate limit(시간당 30건)+메시지 길이 제한, Kakao/Google 5xx·4xx 구분, BibleTextImporter 트랜잭션, docs/PRD.md 갱신, 한글 가짜 책이름 우회 수정은 회귀로 보류. (3) **위기 sticky 재설계(D-026)** — 시간 기반 하강(D-020) 폐기, 화제 전환 시 즉시 새 요청 처리하는 1회성 방식으로 교체(민규 결정 — 제품 페르소나가 위기 상황자를 상정하지 않는다는 논의 포함, 안전망 자체는 유지). (4) **prayer.txt 번영신학 표현 수정** — theology-checker 정적 검토 4회 반복(모세→한나→하박국) 끝에 확정. 테스트 108건 통과. 위기 문구 반복의 심리적 영향은 별도 논의로 이월 | 완료 |
+| 2026-07-23 | **Phase 3 착수 결정**: RN 담당자 확정(D-027) — 민규 직접 개발(친구 협업 아님, UI/UX 실무 경험 없음 확인). 채팅 UI는 라이브러리 활용으로 디자인 결정 최소화 방향. ROADMAP Phase 3 문서 정리(대화 이력 동기화 문구가 D-024와 불일치해 제거) + 현재 상태 헤더 갱신(Phase 2 완료 반영). 다음 단계: Expo 스캐폴딩 | 진행 중 |
