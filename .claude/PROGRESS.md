@@ -142,12 +142,19 @@
 
 ## 진행 중
 
-- [ ] **Phase 3 모바일(RN+Expo) 착수 — 2026-07-23 시작.** RN 담당자 = 직접 개발 확정(D-027, 민규가
-  UI/UX 실무 경험 없음 → 채팅 UI 라이브러리로 디자인 결정 최소화). 다음 단계: Expo 프로젝트 스캐폴딩.
+- [ ] **Phase 3 모바일(RN+Expo) 진행 중 — 2026-07-23 시작, 2026-07-27 스캐폴딩 완료.** RN 담당자 =
+  직접 개발 확정(D-027). 다음 단계: **채팅 UI (`react-native-gifted-chat`)**.
   (참고로 남겨둔 다른 후보였던 CrisisSessionStore 영속화·애플 로그인은 서버 1대·iOS 미착수 상태라 후순위 유지)
 
 ## 모바일 다음 작업 (React Native + Expo)
-1. [ ] Expo 프로젝트 스캐폴딩, 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링)
+0. [x] **Expo 프로젝트 스캐폴딩 — 2026-07-27 완료** (`mobile/`, D-028·D-029). expo 54.0.36 / React 19.1.0 /
+   RN 0.81.5 / expo-router 6.0.24. expo-router 파일 기반 라우팅 + Stack(탭 아님 — 로그인→채팅 흐름).
+   앱 표시명 `엠마오`, slug·scheme `emmaus`, 번들ID·패키지 `com.malssumbeot.emmaus`.
+   검증: `tsc --noEmit` 통과 / `expo-doctor` 18/18 / 안드로이드 번들 export 성공 /
+   **민규 안드로이드 폰 Expo Go 실기동 확인 완료**(D-027 게이트).
+   · **SDK 54 고정은 임시**(D-028) — 폰 Expo Go(54.0.8)가 SDK 54까지만 지원. 개발 빌드 전환 시 최신으로 올림
+1. [ ] 채팅 UI (메시지 리스트, 성경 구절 인용 블록 구분 렌더링) — `react-native-gifted-chat`,
+   구절 블록은 `renderBubble` 커스텀
 2. [ ] 로그인 플로우 + 대화 이력 동기화
 3. [ ] 오늘의 말씀 푸시 알림 (수신 동의 기반)
 4. [ ] 스토어 제출 준비: 개인정보처리방침, AI 생성 콘텐츠 고지, 신고 버튼
@@ -215,9 +222,20 @@
     어려운 게 아니라, 민감정보 등급·미성년자 보호·사용자 권리 보장 의무가 새로 생기는 게 이유임).
 - [ ] Apple Developer($99/년) / Google Play($25) 개발자 계정 등록
 - [~] 소셜 로그인용 카카오/구글/Apple 개발자 콘솔 앱 등록 — 카카오(7/20)·구글 완료. 애플만 남음(로그인 미구현, iOS 착수 시)
+  · 카카오: 엠마오 앱 ID `1515709`, 카카오 로그인 활성화, REST API 키. 방식 A(D-022)라 Client Secret·
+    Redirect URI 불필요. 이메일은 비즈앱 전환 전까지 미수집. 플랫폼 키해시(Android)·번들 ID(iOS)
+    등록은 Phase 3 RN 앱 생성 시
+  · **번들ID·패키지명 확정(2026-07-27, D-029): `com.malssumbeot.emmaus`** — 카카오 콘솔 안드로이드
+    플랫폼 등록에 이 값 + 키해시 필요. 키해시는 개발 빌드 전환 시점에 생성
+- [ ] **iOS 출시의 하드 블로커 2건 (2026-07-27 스캐폴딩 중 확인, 안드로이드 선출시에는 무관)**
+  1. **애플 로그인 구현 필수** — 애플 심사 가이드라인 4.8상, 구글·카카오 소셜 로그인을 제공하면서
+     애플 로그인만 빼면 리젝 사유. 현재 `AuthController`는 애플 미구현(400). iOS를 내려면 구현 필요
+  2. **iOS 실기 검증 최소 1회 필요** — 개발 환경이 Windows라 iOS 시뮬레이터 사용 불가. 안전영역(노치)·
+     키보드 동작·폰트가 안드로이드에서만 맞고 iOS에서 깨질 수 있음. 출시 전 TestFlight 또는
+     주변 아이폰 Expo Go로 확인하는 절차를 스토어 제출 준비에 포함할 것
 - [x] (2026-07-16 확정, D-021) 서비스명: 앱=엠마오, 챗봇=바나바. 내부 패키지 malssumbeot 유지.
   챗봇 자기지칭 "바나바"를 프롬프트에 반영하는 것은 사람 승인 항목이라 프롬프트 작업 시 처리
-- [ ] RN 담당 협업자 확정 (친구 협업 vs 직접 개발)
+- [x] (2026-07-23 확정, D-027) RN 담당 협업자 → **직접 개발**
 - [ ] **개인 맞춤 온보딩 + 7일 여정 기획(`docs/features/onboarding-7day-journey.md`) 열린 질문** (2026-07-18 민규
   제안, 경쟁 앱 벤치마킹). 파일에 원안 보존 + 조정 반영. 착수 전 확정 필요한 항목:
   1. **교단별 "해석" 반영 범위** — 개신교 교단(장로교·감리교·순복음 등)만 남김(가톨릭·성공회 제거,
@@ -250,9 +268,10 @@ CLAUDE.md의 DoD 체크리스트 참조. 전부 충족 시 베타 배포 보고.
 | 2026-07-02 | 개역한글 텍스트 소스 확정(대한성서공회 공식 성경읽기 페이지, D-016) + `BibleTextScraper`(Jsoup) 신규 작성 → TSV 생성 → 기존 임포터로 31,102절 DB 적재, 검증 완료. `BibleBookCatalog`에 영문 코드 해석 추가. 브랜치 `feature/bible-text-import` | 완료 |
 | 2026-07-12 | 장 단위 인용 검증 보강: `시편 23편`·`눅 15장` 스캔 및 chapterCount 검증 추가. 존재하지 않는 장은 재생성·제거 경로로 처리. 모델이 성경 주소와 함께 생성한 본문·풀이는 모두 제거하고 DB 원문만 별도 전달(D-017). 위기는 고정 연락처 안내로 결정론 처리, 영어 장절도 환각 후보로 감지. 테스트 76건 통과. 브랜치 `feature/verse-reference-validation` | 완료 |
 | 2026-07-15 | **Phase 0 완료**: 프롬프트 5건 승인·반영(daily-chat/out-of-scope 본문, 위기 escape hatch, T2 회복규칙, T7 로또경계), 환각 폴백 문구 승인, crisis-patterns 수정없음 확정. 위기 sticky를 단계 하강(HIGH→MID→LOW→해제, 90분)으로 재설계 + MID/LOW 문구 2종(D-020, Model 2). 성경 DB 적재 확인(31,102절). 인라인 신학 검사: 프롬프트 PASS, 위기 경로 조건부 PASS(severity high, 전문가 검토 권장). 테스트 81건 통과. 브랜치 `feature/crisis-response-branching` | 완료 |
-| 2026-07-20 | **Phase 2 소셜 로그인**: 방식 A(토큰 검증형, D-022) 결정. `com.malssumbeot.auth` 신규 — `POST /api/auth/{provider}`(google/kakao), 제공자별 TokenVerifier(구글 ID토큰·카카오 사용자정보 API) + JwtService(jjwt) + AuthService(User upsert). 카카오 개발자 콘솔 앱 등록(엠마오, 이메일은 비즈앱 전까지 미수집). 의존성 jjwt·google-api-client 추가. 테스트 98건 통과. 브랜치 `feature/oauth-login` | 완료 |
+| 2026-07-20 | **Phase 2 소셜 로그인**: 방식 A(토큰 검증형, D-022) 결정. `com.malssumbeot.auth` 신규 — `POST /api/auth/{provider}`(google/kakao), 제공자별 TokenVerifier(구글 ID토큰·카카오 사용자정보 API) + JwtService(jjwt) + AuthService(User upsert). 카카오 개발자 콘솔 앱 등록(엠마오, 이메일은 비즈앱 전까지 미수집). 의존성 jjwt·google-api-client 추가. 스모크 테스트로 구글 500 버그 발견·수정(`IllegalArgumentException` 미처리 → 500, 회귀 테스트 추가). 테스트 98건 통과. 브랜치 `feature/oauth-login` | 완료 |
 | 2026-07-20 | **대화 이력 저장 = MVP 범위 밖 결정(D-024)**: "돕기(실시간)"와 "저장(DB)"을 분리 — 위기 대응은 CrisisSessionStore(타임스탬프만, 시간 하강)가 담당하므로 대화 이력 DB 저장은 불필요. MVP는 세션 내 개인화만. 앱 전용 출시라 기기 동기화 후순위. 민감정보·미성년자·개인정보처리방침 리스크 소멸. DECISIONS/ROADMAP 갱신 | 완료 |
 | 2026-07-20 | **`/api/chat` JWT 인증 배선(D-023)**: `JwtAuthInterceptor`(HandlerInterceptor)+`WebConfig`로 `/api/**` 보호·`/api/auth/**` 제외. `UnauthenticatedException`(401). 신원 모델 A(sessionId 공존, 위기 로직 무변경). Spring Security 미도입(경량). 슬라이스 테스트 4건 + 기존 @WebMvcTest에 `@Import(JwtService.class)` 보정. 학습자료 11장 갱신. 테스트 103건 통과 | 완료 |
 | 2026-07-16 | **Phase 1 완료**: 채팅 HTTP 계층. `com.malssumbeot.api` 신규 — `ChatRequest`/`ChatResponse` DTO, `ChatController`(`POST /api/chat`). sessionId 바디 필드, 위기 우회 불가는 단일 진입점으로 보장(인터셉터 후속, 민규 결정). CLAUDE.md 컨벤션 webhook→api. @WebMvcTest 3 + 위기 E2E 통합테스트 1 추가, 테스트 85건 통과 | 완료 |
 | 2026-07-22 | **독립 코드 리뷰 후속 조치(별도 세션 리뷰 결과 반영)**: (1) **성경 근거 파이프라인 재설계(D-025)** — grounding 미배선(P0-1)·주소없는 주장 미검증(P0-2)·D-017 전체삭제 부작용(P0-3) 해소. 2단계 grounded 생성(1단계 경량 모델 주소 제안 → DB 검증 → 2단계 원문 포함 생성), 신규 `verse-address-proposal.txt`. (2) **P1/P2 코드 수정 6건**: unverifiedReferences API 노출 제거, rate limit(시간당 30건)+메시지 길이 제한, Kakao/Google 5xx·4xx 구분, BibleTextImporter 트랜잭션, docs/PRD.md 갱신, 한글 가짜 책이름 우회 수정은 회귀로 보류. (3) **위기 sticky 재설계(D-026)** — 시간 기반 하강(D-020) 폐기, 화제 전환 시 즉시 새 요청 처리하는 1회성 방식으로 교체(민규 결정 — 제품 페르소나가 위기 상황자를 상정하지 않는다는 논의 포함, 안전망 자체는 유지). (4) **prayer.txt 번영신학 표현 수정** — theology-checker 정적 검토 4회 반복(모세→한나→하박국) 끝에 확정. 테스트 108건 통과. 위기 문구 반복의 심리적 영향은 별도 논의로 이월 | 완료 |
 | 2026-07-23 | **Phase 3 착수 결정**: RN 담당자 확정(D-027) — 민규 직접 개발(친구 협업 아님, UI/UX 실무 경험 없음 확인). 채팅 UI는 라이브러리 활용으로 디자인 결정 최소화 방향. ROADMAP Phase 3 문서 정리(대화 이력 동기화 문구가 D-024와 불일치해 제거) + 현재 상태 헤더 갱신(Phase 2 완료 반영). 다음 단계: Expo 스캐폴딩 | 진행 중 |
+| 2026-07-27 | **Phase 3 Expo 스캐폴딩 완료(D-028·D-029)**: `mobile/` 신규 — expo-router 파일 기반 라우팅 + Stack(로그인→채팅 흐름에 맞춰 탭 아님), 표시명 엠마오/번들ID `com.malssumbeot.emmaus`. **SDK 버전 이슈**: `create-expo-app@latest`가 갓 배포된 SDK 57을 잡아 폰 Expo Go(54.0.8)가 거부 → 56 단계 다운그레이드는 peer dependency 충돌(ERESOLVE)로 실패 → `expo-template-default@sdk-54`로 재생성해 해결(D-028, 개발 빌드 전환 시 최신으로 올릴 임시 조치). 검증: tsc 통과 / expo-doctor 18-18 / 안드로이드 번들 export 성공 / **민규 폰 Expo Go 실기동 확인**(D-027 게이트). iOS 하드 블로커 2건(애플 로그인 심사 필수·Windows라 iOS 실기 미검증) PROGRESS에 기록. 학습자료 14장 작성. 세션 시작 시 워킹카피가 머지된 구브랜치에 7커밋 뒤처져 있어 main 최신화 선행 | 완료 |
