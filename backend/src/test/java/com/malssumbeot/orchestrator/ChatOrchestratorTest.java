@@ -139,7 +139,7 @@ class ChatOrchestratorTest {
                 .thenReturn(List.of(
                         new BibleVerse(50, 4, 6, "(테스트 본문 6절)"),
                         new BibleVerse(50, 4, 7, "(테스트 본문 7절)")));
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), contains("<bible_verses>"), anyString()))
+        when(claudeChat.complete(eq(CASUAL_MODEL), anyInt(), contains("<bible_verses>"), anyString()))
                 .thenReturn("마음이 많이 무거우셨겠어요. 빌립보서 4:6-7 말씀을 함께 읽어보면 어떨까요.");
 
         ChatReply reply = orchestrator.handle("s1", "요즘 너무 불안해");
@@ -157,7 +157,7 @@ class ChatOrchestratorTest {
         when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
         when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
                 .thenReturn("");
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), contains("단정적 표현을 쓰지 마세요"), anyString()))
+        when(claudeChat.complete(eq(CASUAL_MODEL), anyInt(), contains("단정적 표현을 쓰지 마세요"), anyString()))
                 .thenReturn("그 마음 충분히 이해돼요. 곁에서 함께 하고 있을게요.");
 
         ChatReply reply = orchestrator.handle("s1", "그냥 이런저런 얘기가 하고 싶어");
@@ -171,7 +171,7 @@ class ChatOrchestratorTest {
         when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
         when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
                 .thenReturn("");
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
+        when(claudeChat.complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString()))
                 .thenReturn("시편 23편도 함께 읽어보시면 좋겠어요. 지금 마음을 천천히 돌봐주세요.");
 
         ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
@@ -187,14 +187,14 @@ class ChatOrchestratorTest {
         when(classifier.classify(anyString())).thenReturn(Intent.COUNSELING);
         when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
                 .thenReturn("");
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
+        when(claudeChat.complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString()))
                 .thenReturn("John 3:16 말씀처럼, 마음을 조금 쉬게 해주세요.");
 
         ChatReply reply = orchestrator.handle("s1", "마음이 불안해요");
 
         assertThat(reply.text()).doesNotContain("John 3:16");
         assertThat(reply.text()).contains("마음을 조금 쉬게 해주세요");
-        verify(claudeChat, times(1)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
+        verify(claudeChat, times(1)).complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString());
     }
 
     @Test
@@ -203,7 +203,7 @@ class ChatOrchestratorTest {
         when(claudeChat.complete(eq(PROPOSAL_MODEL), anyInt(), anyString(), anyString()))
                 .thenReturn("");
         // 빌립보서는 4장까지 — 9:9는 존재하지 않는 구절 (T8 시나리오)
-        when(claudeChat.complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString()))
+        when(claudeChat.complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString()))
                 .thenReturn("빌립보서 9:9 말씀처럼 평안을 빕니다.");
 
         ChatReply reply = orchestrator.handle("s1", "평안이 뭘까요");
@@ -211,7 +211,7 @@ class ChatOrchestratorTest {
         assertThat(reply.text()).doesNotContain("빌립보서 9:9");
         assertThat(reply.unverifiedReferences()).containsExactly("빌립보서 9:9");
         assertThat(reply.passages()).isEmpty();
-        verify(claudeChat, times(1)).complete(eq(FAITH_MODEL), anyInt(), anyString(), anyString());
+        verify(claudeChat, times(1)).complete(eq(CASUAL_MODEL), anyInt(), anyString(), anyString());
     }
 
     @Test

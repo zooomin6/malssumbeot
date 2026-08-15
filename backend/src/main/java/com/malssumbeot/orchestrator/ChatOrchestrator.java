@@ -155,7 +155,7 @@ public class ChatOrchestrator {
     private ChatReply generate(Intent intent, String userMessage) {
         String model = modelRouter.route(intent);
         List<VersePassage> verifiedPassages = intent.requiresGrounding()
-                ? proposeVerifiedPassages(userMessage)
+                ? collectVerifiedPassages(userMessage)
                 : List.of();
 
         String system = promptAssembler.assemble(intent, verifiedPassages);
@@ -177,6 +177,30 @@ public class ChatOrchestrator {
         }
 
         return new ChatReply(finalText, intent, false, verifiedPassages, List.copyOf(unverifiedReferences));
+    }
+
+    /**
+     * 검증된 구절 원문을 두 경로로 모은다: (1) 사용자가 메시지에서 직접 언급한 주소("출애굽기
+     * 2장 1절"처럼)는 모델 제안과 무관하게 스캔·조회해 항상 반영한다 — 순수 구절 조회 요청은
+     * "상황·감정에 맞는 위로 구절"을 찾는 1단계 제안 프롬프트의 취지와 안 맞아 제안에서 누락될
+     * 수 있기 때문. (2) 그 외 상황에 맞는 위로/규정/서사 구절은 기존처럼 경량 모델에게 제안받는다.
+     */
+    private List<VersePassage> collectVerifiedPassages(String userMessage) {
+        List<VersePassage> passages = new ArrayList<>();
+        for (String candidate : scanner.scan(userMessage)) {
+            verseService.findPassage(candidate).ifPresent(passage -> addIfAbsent(passages, passage));
+        }
+        for (VersePassage passage : proposeVerifiedPassages(userMessage)) {
+            addIfAbsent(passages, passage);
+        }
+        return passages;
+    }
+
+    private static void addIfAbsent(List<VersePassage> passages, VersePassage candidate) {
+        boolean exists = passages.stream().anyMatch(p -> samePassage(p, candidate));
+        if (!exists) {
+            passages.add(candidate);
+        }
     }
 
     /**

@@ -21,7 +21,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.malssumbeot.emmaus"
+      "package": "com.malssumbeot.emmaus",
+      "usesCleartextTraffic": true
     },
     "web": {
       "output": "static",

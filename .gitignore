@@ -14,3 +14,7 @@ Thumbs.db
 # node (pitch deck 생성 도구)
 node_modules/
 docs/pitch/package-lock.json
+
+# 잘못된 위치(backend/, 루트)에서 expo 명령을 실행했을 때 생기는 캐시
+.expo/
+backend/.expo/

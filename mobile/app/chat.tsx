@@ -1,7 +1,8 @@
 import { Passage, VerseQuote } from "@/components/VerseQuote";
+import { API_BASE_URL } from "@/constants/api";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -11,8 +12,61 @@ import {
   View,
 } from "react-native";
 import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+/** 선택 가능한 텍스트로 렌더링하도록 라이브러리 기본 규칙을 덮어쓴다. */
+const markdownRules = {
+  text: (node: any, children: any, parent: any, styles: any, inheritedStyles = {}) => (
+    <Text key={node.key} selectable style={[inheritedStyles, styles.text]}>
+      {node.content}
+    </Text>
+  ),
+  textgroup: (node: any, children: any, parent: any, styles: any) => (
+    <Text key={node.key} selectable style={styles.textgroup}>
+      {children}
+    </Text>
+  ),
+};
+
+/** 바나바가 응답을 생성하는 동안 보여주는 점 3개 애니메이션. */
+function TypingDots() {
+  const dot1 = useSharedValue(0.3);
+  const dot2 = useSharedValue(0.3);
+  const dot3 = useSharedValue(0.3);
+
+  useEffect(() => {
+    const loop = (value: typeof dot1, delay: number) => {
+      value.value = withDelay(
+        delay,
+        withRepeat(withSequence(withTiming(1, { duration: 300 }), withTiming(0.3, { duration: 300 })), -1),
+      );
+    };
+    loop(dot1, 0);
+    loop(dot2, 150);
+    loop(dot3, 300);
+  }, [dot1, dot2, dot3]);
+
+  const style1 = useAnimatedStyle(() => ({ opacity: dot1.value }));
+  const style2 = useAnimatedStyle(() => ({ opacity: dot2.value }));
+  const style3 = useAnimatedStyle(() => ({ opacity: dot3.value }));
+
+  return (
+    <View style={styles.typingRow}>
+      <Animated.View style={[styles.typingDot, style1]} />
+      <Animated.View style={[styles.typingDot, style2]} />
+      <Animated.View style={[styles.typingDot, style3]} />
+    </View>
+  );
+}
 
 /** 챗봇 = 바나바 (D-021). notice는 말풍선이 아닌 테두리 안내 문구. */
 type Message = {
@@ -26,42 +80,8 @@ type Message = {
 /** 시안의 추천 응답. 탭하면 그 문구를 그대로 보낸다. */
 const QUICK_REPLIES = ["짧게 기도해줘", "말씀 더 보기"];
 
-/**
- * 서버 연결 전 목업. 실제로는 `POST /api/chat`의 응답이 그대로 들어온다.
- * 목록을 inverted로 그리므로 최신 메시지가 배열 앞에 온다.
- */
+/** 서버 연결 전에도 보이는 고정 안내 문구. 목록을 inverted로 그리므로 최신 메시지가 배열 앞에 온다. */
 const INITIAL_MESSAGES: Message[] = [
-  {
-    id: "4",
-    text: "지금 가장 마음을 재촉하는 한 가지는 무엇인가요? 함께 천천히 들여다볼까요?",
-    fromBarnabas: true,
-  },
-  {
-    id: "3",
-    text: "잘해내고 싶은 마음이 큰 만큼, 마음이 먼저 달려가고 있나 봐요. 잠시 멈춰도 괜찮아요.",
-    fromBarnabas: true,
-    passages: [
-      {
-        reference: "빌립보서 4:6-7",
-        bookName: "빌립보서",
-        chapter: 4,
-        verseStart: 6,
-        verseEnd: 7,
-        // 본문은 비워둔다. 개역한글 원문은 서버가 DB에서 조회해 내려주는 것만 쓴다 (절대원칙 2).
-        verses: [
-          {
-            verse: 6,
-            text: "서버 연결 시 이 자리에 DB에서 조회한 개역한글 원문이 표시됩니다. 지금은 화면 확인용 자리표시자이므로 실제 성경 본문이 아닙니다.",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "2",
-    text: "요즘 마음이 자꾸 조급해져요. 잘하고 있는 건지 모르겠어요.",
-    fromBarnabas: false,
-  },
   {
     id: "1",
     text: "바나바는 정답을 대신 내리기보다, 성경 말씀을 바탕으로 마음을 천천히 살피도록 도와드려요.",
@@ -73,8 +93,20 @@ const INITIAL_MESSAGES: Message[] = [
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [draft, setDraft] = useState("");
+  const [token, setToken] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const insets = useSafeAreaInsets();
-  const canSend = draft.trim().length > 0;
+  const sessionId = useRef(`session-${Math.random().toString(36).slice(2)}`).current;
+  const canSend = draft.trim().length > 0 && token !== null;
+
+  // 개발 전용: 로그인 플로우가 아직 없어 dev 프로파일 전용 토큰을 화면 진입 시 한 번 받아둔다.
+  // 로그인 완성 후에는 로그인 결과로 받은 토큰을 쓰도록 교체한다.
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/auth/dev-token`, { method: "POST" })
+      .then((res) => res.json())
+      .then((data) => setToken(data.accessToken))
+      .catch((err) => console.error("dev-token 발급 실패", err));
+  }, []);
 
   // KeyboardProvider가 창 축소를 가져가므로 아래 여백을 직접 만들어 입력창을 밀어 올린다.
   // height는 키보드가 열릴수록 음수로 커지고, 매 프레임 갱신돼 키보드를 그대로 따라간다.
@@ -85,13 +117,31 @@ export default function ChatScreen() {
     [insets.bottom],
   );
 
-  const sendText = (text: string) => {
+  const sendText = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || !token) return;
     setMessages((prev) => [
       { id: `${Date.now()}-${prev.length}`, text: trimmed, fromBarnabas: false },
       ...prev,
     ]);
+
+    setIsSending(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sessionId, message: trimmed }),
+      });
+      const data = await res.json();
+      setMessages((prev) => [
+        { id: `${Date.now()}-${prev.length}`, text: data.text, fromBarnabas: true, passages: data.passages },
+        ...prev,
+      ]);
+    } catch (err) {
+      console.error("채팅 요청 실패", err);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const send = () => {
@@ -128,19 +178,28 @@ export default function ChatScreen() {
         keyboardDismissMode="interactive"
         // inverted라서 header는 화면 아래쪽(최신), footer는 위쪽(대화 시작)에 그려진다.
         ListHeaderComponent={
-          messages[0]?.fromBarnabas ? (
-            <View style={styles.quickReplies}>
-              {QUICK_REPLIES.map((reply) => (
-                <Pressable
-                  key={reply}
-                  onPress={() => sendText(reply)}
-                  style={styles.quickReplyChip}
-                >
-                  <Text style={styles.quickReplyText}>{reply}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null
+          <>
+            {isSending && (
+              <View style={styles.rowLeft}>
+                <View style={[styles.bubble, styles.bubbleBarnabas]}>
+                  <TypingDots />
+                </View>
+              </View>
+            )}
+            {messages[0]?.fromBarnabas ? (
+              <View style={styles.quickReplies}>
+                {QUICK_REPLIES.map((reply) => (
+                  <Pressable
+                    key={reply}
+                    onPress={() => sendText(reply)}
+                    style={styles.quickReplyChip}
+                  >
+                    <Text style={styles.quickReplyText}>{reply}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </>
         }
         ListFooterComponent={
           <View style={styles.dayChip}>
@@ -163,11 +222,15 @@ export default function ChatScreen() {
                   item.fromBarnabas ? styles.bubbleBarnabas : styles.bubbleMe,
                 ]}
               >
-                <Text
-                  style={item.fromBarnabas ? styles.textBarnabas : styles.textMe}
-                >
-                  {item.text}
-                </Text>
+                {item.fromBarnabas ? (
+                  <Markdown style={markdownStyles} rules={markdownRules}>
+                    {item.text}
+                  </Markdown>
+                ) : (
+                  <Text selectable style={styles.textMe}>
+                    {item.text}
+                  </Text>
+                )}
                 {item.passages?.map((p) => (
                   <VerseQuote key={p.reference} passage={p} />
                 ))}
@@ -203,6 +266,18 @@ export default function ChatScreen() {
     </Animated.View>
   );
 }
+
+/** 바나바 응답은 마크다운으로 올 수 있어 렌더링한다. 말풍선 텍스트 스타일과 맞춘다. */
+const markdownStyles = {
+  body: { fontSize: 16, lineHeight: 25, color: "#2f3328" },
+  heading1: { fontSize: 19, fontWeight: "700" as const, marginTop: 4, marginBottom: 4 },
+  heading2: { fontSize: 18, fontWeight: "700" as const, marginTop: 4, marginBottom: 4 },
+  heading3: { fontSize: 17, fontWeight: "700" as const, marginTop: 4, marginBottom: 4 },
+  strong: { fontWeight: "700" as const },
+  bullet_list: { marginVertical: 4 },
+  ordered_list: { marginVertical: 4 },
+  hr: { backgroundColor: "#e0dbcc", height: 1, marginVertical: 8 },
+};
 
 const styles = StyleSheet.create({
   screen: {
@@ -277,15 +352,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#394437",
     borderTopRightRadius: 6,
   },
-  textBarnabas: {
-    fontSize: 16,
-    lineHeight: 25,
-    color: "#2f3328",
-  },
   textMe: {
     fontSize: 16,
     lineHeight: 25,
     color: "#ffffff",
+  },
+  typingRow: {
+    flexDirection: "row",
+    gap: 4,
+    paddingVertical: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#8a8b78",
   },
   quickReplies: {
     flexDirection: "row",
