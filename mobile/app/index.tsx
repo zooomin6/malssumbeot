@@ -6,6 +6,9 @@ export default function Index() {
     <View style={styles.container}>
       <Text style={styles.title}>엠마오</Text>
       <Text style={styles.subtitle}>스캐폴딩 확인용 화면</Text>
+      <Link href="/chat-entry" style={styles.link}>
+        대화 시작 시트 열기
+      </Link>
       <Link href="/chat" style={styles.link}>
         채팅 화면 열기
       </Link>
