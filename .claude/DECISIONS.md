@@ -531,6 +531,29 @@
   `collectVerifiedPassages`를 호출. `VerseReferenceScanner`가 이제 모델 응답뿐 아니라 사용자
   입력에도 재사용됨.
 
+### D-039. 모바일 로그인 플로우: Context+SecureStore 인증 상태 + Stack.Protected 가드 + dev-token 임시 브릿지
+- 날짜: 2026-08-15
+- 이유: 채팅 화면이 매번 자체적으로 dev-token을 새로 발급받아 `useState`에만 담아둬서,
+  앱을 재시작하면 로그인 상태가 사라지는 문제(D-037/038과 같은 세션 "서버 연결" 작업의
+  임시 상태를 정식 로그인 흐름으로 승격). 실제 구글/카카오 로그인은 네이티브 SDK가 필요해
+  개발 빌드 전환이 선행돼야 하므로(D-028), 이번엔 **화면·상태 구조만 먼저 완성**하고 소셜
+  로그인 자체는 범위 밖으로 뒀다(민규 확인, 화면/플로우만 먼저 진행하기로 선택).
+- 결정: `contexts/AuthContext.tsx` 신설 — 토큰을 `expo-secure-store`에 저장하고 React Context로
+  앱 전역에 공유. `app/login.tsx` 신설 — "개발용으로 시작하기" 버튼이 dev-token을 받아 Context에
+  반영. 화면 전환은 **`app/index.tsx`에서 렌더링 후 조건부로 `<Redirect>`하는 방식이 아니라**,
+  `app/_layout.tsx`에서 `Stack.Protected guard={...}`로 인증 여부에 따라 화면 그룹 자체를 다르게
+  구성하는 Expo Router 공식 인증 가드 패턴을 채택. 전자로 먼저 구현했다가 "토큰이 정상 저장·복원되는데도
+  재시작 시 로그인 화면이 다시 뜨는" 버그가 발견돼(SecureStore 저장은 문제 없었음 — 로그를 찍어
+  직접 확인) 후자로 교체.
+- 영향: `app/_layout.tsx`(RootNavigator로 재구성), `app/index.tsx`(인증된 사용자의 앵커 화면으로
+  단순화, `/chat-entry`로 무조건 리다이렉트), `app/login.tsx`(신규), `app/chat.tsx`(자체 dev-token
+  발급 제거, Context 토큰 사용 + 임시 로그아웃을 헤더 "..." 버튼에 연결 — 본 기능은 아직 범위 밖).
+  `expo-secure-store` 패키지 추가.
+- **재검토 트리거**: 실제 구글/카카오 로그인 SDK 연동 시(개발 빌드 전환 동반), `login.tsx`의
+  dev-token 버튼을 소셜 로그인 버튼으로 교체하고 `AuthContext`의 `loginWithDevToken`을
+  일반화된 `login(provider, token)`으로 확장. 헤더 "..." 메뉴에 임시로 붙인 로그아웃은
+  실제 메뉴 설계(2026-08-03 보류 항목) 확정 시 정리.
+
 ## 재검토 요청
 
 (없음)

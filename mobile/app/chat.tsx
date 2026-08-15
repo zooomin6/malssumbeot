@@ -1,5 +1,6 @@
 import { Passage, VerseQuote } from "@/components/VerseQuote";
 import { API_BASE_URL } from "@/constants/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -91,22 +92,13 @@ const INITIAL_MESSAGES: Message[] = [
 ];
 
 export default function ChatScreen() {
+  const { token, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [draft, setDraft] = useState("");
-  const [token, setToken] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const insets = useSafeAreaInsets();
   const sessionId = useRef(`session-${Math.random().toString(36).slice(2)}`).current;
   const canSend = draft.trim().length > 0 && token !== null;
-
-  // 개발 전용: 로그인 플로우가 아직 없어 dev 프로파일 전용 토큰을 화면 진입 시 한 번 받아둔다.
-  // 로그인 완성 후에는 로그인 결과로 받은 토큰을 쓰도록 교체한다.
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/auth/dev-token`, { method: "POST" })
-      .then((res) => res.json())
-      .then((data) => setToken(data.accessToken))
-      .catch((err) => console.error("dev-token 발급 실패", err));
-  }, []);
 
   // KeyboardProvider가 창 축소를 가져가므로 아래 여백을 직접 만들어 입력창을 밀어 올린다.
   // height는 키보드가 열릴수록 음수로 커지고, 매 프레임 갱신돼 키보드를 그대로 따라간다.
@@ -159,8 +151,9 @@ export default function ChatScreen() {
               <Text style={styles.headerSubtitle}>말씀 곁을 함께 걷는 동행자</Text>
             </View>
           ),
+          // 임시: 로그인 흐름 테스트용 로그아웃. "..." 메뉴 본 기능은 아직 범위 밖.
           headerRight: () => (
-            <Pressable hitSlop={10}>
+            <Pressable hitSlop={10} onPress={logout}>
               <Ionicons name="ellipsis-horizontal" size={22} color="#6f735b" />
             </Pressable>
           ),
