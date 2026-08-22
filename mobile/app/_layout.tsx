@@ -18,11 +18,27 @@ function RootNavigator() {
   return (
     <Stack>
       <Stack.Protected guard={!!token}>
-        <Stack.Screen name="index" />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="chat" />
-        {/* 진입 시트는 앞 화면 위에 겹쳐 올라오는 바텀시트라 투명 모달로 띄운다. */}
+        {/* 진입 시트/입력 시트는 앞 화면 위에 겹쳐 올라오는 바텀시트라 투명 모달로 띄운다. */}
         <Stack.Screen
           name="chat-entry"
+          options={{
+            presentation: "transparentModal",
+            animation: "slide_from_bottom",
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="mind-record-new"
+          options={{
+            presentation: "transparentModal",
+            animation: "slide_from_bottom",
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="prayer-request-new"
           options={{
             presentation: "transparentModal",
             animation: "slide_from_bottom",

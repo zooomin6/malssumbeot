@@ -24,6 +24,7 @@
 | 14 | [Expo 스캐폴딩 — 배포 형태부터 이해하고 시작하기](14-expo-scaffolding.md) | Expo/Expo Go/빌드 구분, 실행 방식 3단계, SDK-폰 버전 결합, expo-router, 맥 없이 iOS | 모바일 |
 | 15 | [채팅 UI 직접 만들기 — 라이브러리를 걷어낸 이유와 키보드에서 세 번 틀린 기록](15-chat-ui-and-keyboard.md) | 라이브러리 판단 기준, 동명 컴포넌트 함정, 추측을 없애는 설계, 리렌더 vs 애니메이션 경로, 시안의 시각 언어 | 모바일 |
 | 16 | [모바일 로그인 플로우 — "저장은 됐는데 왜 다시 로그인 화면이 뜨지?"](16-mobile-login-flow.md) | Context vs SecureStore 역할 구분, 라우팅 타이밍 버그와 Stack.Protected, 기술 제약으로 범위를 미루는 판단 | 모바일 |
+| 17 | [탭과 옵트인 저장 — 화면 구조와 데이터 책임을 함께 바꾸기](17-tabs-and-opt-in-storage.md) | Stack과 Tabs의 역할 분리, 자동 저장과 명시적 저장의 차이, JWT 소유권 검사, 구절 스냅샷 | 모바일 + 서버개발 |
 
 ## 이 프로젝트에서 배울 수 있는 큰 그림
 

@@ -2,7 +2,7 @@ import { Passage, VerseQuote } from "@/components/VerseQuote";
 import { API_BASE_URL } from "@/constants/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -76,6 +76,9 @@ type Message = {
   fromBarnabas: boolean;
   notice?: boolean;
   passages?: Passage[];
+  /** 이 응답이 답한 사용자 메시지. 보관함 저장 시 함께 보낸다(배열을 거슬러 찾지 않는다). */
+  respondingTo?: string;
+  savedToArchive?: boolean;
 };
 
 /** 시안의 추천 응답. 탭하면 그 문구를 그대로 보낸다. */
@@ -92,7 +95,7 @@ const INITIAL_MESSAGES: Message[] = [
 ];
 
 export default function ChatScreen() {
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -126,7 +129,13 @@ export default function ChatScreen() {
       });
       const data = await res.json();
       setMessages((prev) => [
-        { id: `${Date.now()}-${prev.length}`, text: data.text, fromBarnabas: true, passages: data.passages },
+        {
+          id: `${Date.now()}-${prev.length}`,
+          text: data.text,
+          fromBarnabas: true,
+          passages: data.passages,
+          respondingTo: trimmed,
+        },
         ...prev,
       ]);
     } catch (err) {
@@ -141,6 +150,33 @@ export default function ChatScreen() {
     setDraft("");
   };
 
+  /** 보관함 저장. 검증된 원문(D-025)을 이미 받은 상태라 그대로 스냅샷으로 보낸다. */
+  const saveToArchive = async (message: Message) => {
+    if (!token || message.savedToArchive) return;
+    const markSaved = (saved: boolean) =>
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, savedToArchive: saved } : m)));
+
+    markSaved(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/archive-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          userMessage: message.respondingTo ?? null,
+          barnabasReply: message.text,
+          verses: message.passages?.map((p) => ({
+            reference: p.reference,
+            text: p.verses.map((v) => v.text).join(" "),
+          })) ?? [],
+        }),
+      });
+      if (!res.ok) throw new Error(`저장 실패: HTTP ${res.status}`);
+    } catch (err) {
+      console.error("보관함 저장 실패", err);
+      markSaved(false);
+    }
+  };
+
   return (
     <Animated.View style={[styles.screen, bottomInset]}>
       <Stack.Screen
@@ -151,10 +187,11 @@ export default function ChatScreen() {
               <Text style={styles.headerSubtitle}>말씀 곁을 함께 걷는 동행자</Text>
             </View>
           ),
-          // 임시: 로그인 흐름 테스트용 로그아웃. "..." 메뉴 본 기능은 아직 범위 밖.
-          headerRight: () => (
-            <Pressable hitSlop={10} onPress={logout}>
-              <Ionicons name="ellipsis-horizontal" size={22} color="#6f735b" />
+          // 탭 밖(전체화면) 스크린이라 홈으로 돌아갈 길이 필요하다 — chat-entry/chat이 replace라 뒤로갈
+          // 네이티브 스택이 없다.
+          headerLeft: () => (
+            <Pressable hitSlop={10} onPress={() => router.replace("/")}>
+              <Ionicons name="chevron-back" size={24} color="#394437" />
             </Pressable>
           ),
           headerStyle: { backgroundColor: "#faf7f0" },
@@ -228,6 +265,19 @@ export default function ChatScreen() {
                   <VerseQuote key={p.reference} passage={p} />
                 ))}
               </View>
+              {item.fromBarnabas && (
+                <Pressable
+                  onPress={() => saveToArchive(item)}
+                  hitSlop={8}
+                  style={styles.bookmarkButton}
+                >
+                  <Ionicons
+                    name={item.savedToArchive ? "bookmark" : "bookmark-outline"}
+                    size={16}
+                    color={item.savedToArchive ? "#b1793d" : "#8a8b78"}
+                  />
+                </Pressable>
+              )}
             </View>
           );
         }}
@@ -324,6 +374,10 @@ const styles = StyleSheet.create({
   rowRight: {
     alignItems: "flex-end",
     marginVertical: 5,
+  },
+  bookmarkButton: {
+    marginTop: 4,
+    alignSelf: "flex-start",
   },
   bubble: {
     maxWidth: "84%",

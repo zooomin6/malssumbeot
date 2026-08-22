@@ -1,9 +1,8 @@
 # PROGRESS.md — 말씀벗 진행 상황
 
 > 모든 에이전트 세션은 이 파일을 먼저 읽고, 작업 후 갱신한다.
-> 마지막 갱신: 2026-08-15 (모바일 로그인 플로우 완성 — Context+SecureStore 인증 상태,
-> Stack.Protected 가드(D-039), dev-token 임시 브릿지. 소셜 로그인 자체는 범위 밖 유지.
-> 백엔드 무변경)
+> 마지막 갱신: 2026-08-22 (D-040·D-041 검증 완료 — 백엔드 전체 테스트 139건,
+> 모바일 TypeScript 검사와 린트 통과. 성경 DB 복구는 별도 남은 작업)
 
 ## 현재 마일스톤: M1 — 기반 구축 (1~2주차)
 
@@ -25,16 +24,30 @@
       email·nickname·타임스탬프, (provider,providerId) 유니크) + `AuthProvider`(GOOGLE/KAKAO/APPLE) + Flyway `V3__users.sql`.
       신앙 설문 필드·대화 이력은 보류(설문 설계/데이터 보관 정책 대기). 실제 PG 부팅으로 Flyway·validate 통과 확인
 - [ ] [crisis] CrisisSessionStore 인메모리 → Redis/DB 이전 검토 (다중 서버 대비)
+- [x] [journal] MindRecord/PrayerRequest — 홈 화면 옵트인 저장 (2026-08-17, D-041, 신규 패키지
+      `com.malssumbeot.journal`): 둘 다 `userId`(FK, User는 @ManyToOne 아닌 순수 Long id로 참조)+
+      `content`. MindRecord만 `mood`(기분 칩 값, nullable) 추가. Flyway `V4__mind_records.sql`/
+      `V5__prayer_requests.sql`
+- [x] [archive] ArchiveItem — 보관함 옵트인 저장 (2026-08-17, D-041, 신규 패키지
+      `com.malssumbeot.archive`): `userMessage`(nullable)·`barnabasReply`·`versesSnapshot`(TEXT, 검증된
+      원문 JSON 스냅샷 — D-025 검증을 이미 통과한 데이터라 재조회 없이 스냅샷으로 저장). Flyway
+      `V6__archive_items.sql`
 
 ### Repository
 - [x] [user] UserRepository (2026-07-16): `findByProviderAndProviderId` — 소셜 콜백에서 기존/신규 판단용. @DataJpaTest 2건
 - [ ] [crisis] CrisisSessionStore 영속화용 Repository (위 Entity 항목과 동일 작업 — Redis/DB 이전 검토)
+- [x] [journal/archive] MindRecordRepository/PrayerRequestRepository/ArchiveItemRepository (2026-08-17):
+      셋 다 `findByUserIdOrderByCreatedAtDesc` 하나뿐. @DataJpaTest로 본인 스코프·최신순 검증
 
 ### DTO
 - [x] [chat] 채팅 요청/응답 DTO 설계 (2026-07-16, `com.malssumbeot.api`): `ChatRequest`(sessionId·message
       @NotBlank), `ChatResponse`(ChatReply→API, passages를 구조화 Verse 리스트로 노출, D-003 유지)
 - [x] [auth] 로그인 요청/응답 DTO 설계 (2026-07-20, `com.malssumbeot.auth`): `LoginRequest`(token @NotBlank),
       `LoginResponse`(accessToken=자체 JWT, provider, nickname, email — 동의 범위 따라 null 가능)
+- [x] [journal/archive] MindRecordRequest/Response, PrayerRequestRequest/Response,
+      ArchiveItemRequest/Response, VerseSnapshot(reference+text) (2026-08-17) — `ChatRequest`와 동일하게
+      `@NotBlank`/`@Size(max=...)` 검증. `ArchiveItemRequest`는 compact constructor로 `verses` null→빈
+      리스트 정규화
 
 ### Service
 - [x] [bible] BibleVerseService: 구절 주소 파싱(풀네임/약어/범위/장절 표기) → DB 원문 조회 +
@@ -93,6 +106,10 @@
 - [ ] [push] FCM/APNs 푸시 발송 연동 (오늘의 말씀 알림 등)
 - [ ] [QA] QA 러너: T1~T8 자동 실행 → theology-checker 판정 → 리포트 저장
       (ChatOrchestrator를 입력으로, 신학 검사 기준으로 자동 판정)
+- [x] [journal/archive] MindRecordService/PrayerRequestService/ArchiveItemService (2026-08-17, D-041):
+      생성+본인 스코프 조회+삭제(타인 소유·미존재는 각각 `*NotFoundException`→404). ArchiveItemService만
+      Jackson `ObjectMapper`로 `verses` ↔ `verses_snapshot` JSON 직렬화 담당(신규 의존성 없음, Spring
+      Web에 이미 포함). Mockito 단위 테스트로 소유권 분기 검증
 
 ### Controller
 - [x] [chat] 채팅 REST API 엔드포인트 (2026-07-16): `ChatController` `POST /api/chat` → `ChatOrchestrator.handle`.
@@ -102,6 +119,13 @@
       → `AuthService`(제공자 토큰 검증 → User upsert → JWT 발급). 제공자별 `SocialTokenVerifier`(GoogleTokenVerifier=
       구글 라이브러리로 ID토큰 검증, KakaoTokenVerifier=사용자정보 API 호출), `JwtService`(jjwt). 애플은 미구현(400).
       `/api/chat`에 JWT 인증 배선 완료(2026-07-20, D-023 — 아래 Filter/Interceptor 참조). 테스트 98건 통과
+- [x] [journal/archive] MindRecordController/PrayerRequestController/ArchiveItemController (2026-08-17,
+      D-041): `/api/mind-records`·`/api/prayer-requests`·`/api/archive-items` (POST/GET/DELETE).
+      `JwtAuthInterceptor.USER_ID_ATTRIBUTE`(`authUserId`)를 컨트롤러가 실제로 꺼내 쓰는 **첫 사례**
+      (그동안 `RateLimitInterceptor`만 내부적으로 읽고 있었음) — `@RequestAttribute` → `Long.valueOf`로
+      파싱해 서비스에 넘긴다. 별도 배선 없이 기존 `WebConfig`의 `/api/**` 인증·요청한도가 그대로 적용됨
+      (시간당 30건을 채팅과 공유 — 문제되면 다음에 경로별로 분리). @WebMvcTest로 401/400/201/200/204
+      경로 검증. **2026-08-22 백엔드 전체 테스트 139건 통과**
 
 ### Filter / Interceptor
 - [~] [crisis] 위기 우회 불가 배선: 2026-07-16 인터셉터 대신 **단일 진입점**으로 보장(민규 결정 — 인터셉터는
@@ -153,19 +177,21 @@
   동작함 — VerseQuote 실데이터 검증(서버 연결 작업의 남은 항목)도 이 복구 이후에 가능.
 - [ ] **Phase 3 모바일(RN+Expo) 진행 중 — 2026-07-23 시작.** RN 담당자 = 직접 개발 확정(D-027).
   스캐폴딩(7/27) → 채팅 UI + 대화 진입 시트(8/3) → 서버 연결 + dev-token 임시 브릿지 →
-  **로그인 플로우(화면+상태) 완료(8/15)**.
+  로그인 플로우(8/15) → **홈 화면 + 하단 탭 + 3종 저장 기능 완료(8/17)**.
   · **로그인 플로우(D-039)**: `contexts/AuthContext.tsx`(토큰을 `expo-secure-store`에 저장,
     React Context로 전역 공유) + `app/login.tsx`(dev-token 발급 버튼) + `app/_layout.tsx`의
     `Stack.Protected guard`로 인증 여부에 따라 화면 그룹 분기. 앱을 완전히 껐다 켜도 로그인
-    유지됨을 폰 실기동으로 확인. `chat.tsx`의 자체 dev-token 발급 로직은 제거하고 Context 토큰
-    사용, 헤더 "..." 버튼에 임시 로그아웃 연결(본 기능은 범위 밖)
-  · **디버깅 기록**: 처음엔 `index.tsx`가 렌더링 후 조건부로 `<Redirect>`하는 방식으로 짰다가,
-    "토큰은 정상 저장·복원되는데 재시작 시 로그인 화면이 다시 뜨는" 버그 발견 → 로그로 저장/복원
-    자체는 정상 동작함을 확인한 뒤, Expo Router 공식 인증 가드 패턴인 `Stack.Protected`로 교체해
-    해결(원인은 "이미 렌더링된 화면에서 뒤늦게 리다이렉트"하는 방식 자체의 타이밍 문제로 추정)
-  · **범위 밖(다음 단계 후보)**: 실제 구글/카카오 로그인(네이티브 SDK, 개발 빌드 전환·카카오
-    키해시 등록 동반), 대화 이력 동기화(D-024로 MVP 범위 밖), 홈 화면(아래 "사람 확인 필요"의
-    구조 결정 선행 필요)
+    유지됨을 폰 실기동으로 확인.
+  · **홈 화면 + 하단 탭 + 3종 저장(D-040·D-041, 2026-08-17)**: `app/(tabs)/` 그룹 신설
+    (홈/말씀/바나바/보관함/나). 홈 화면은 시안대로 인사말+기분 칩+오늘의 말씀(고정 문구, DB 연동은
+    다음 세션)+마음기록/기도제목 카드. 백엔드에 `com.malssumbeot.journal`(마음기록/기도제목)·
+    `com.malssumbeot.archive`(보관함) 신규 — 셋 다 로그인한 사용자 본인 것만 저장·조회·삭제.
+    `chat.tsx`에 바나바 답변 북마크 버튼(→보관함 저장) + 홈으로 돌아가는 헤더 버튼 추가, 헤더
+    "..." 임시 로그아웃은 "나" 탭으로 이동. `constants/colors.ts` 신규(새 화면들이 공유, 기존
+    `VerseQuote.tsx`는 그대로 둠).
+  · **범위 밖(다음 단계 후보)**: 오늘의 말씀 실제 DB 연동(성경 DB 복구 완료 후), 말씀 탭 실제 기능,
+    대화 진입 시트 선택지→서버 인텐트 연동, 알림 벨 기능, 실제 구글/카카오 로그인(네이티브 SDK,
+    개발 빌드 전환 동반)
   (CrisisSessionStore 영속화·애플 로그인은 서버 1대·iOS 미착수 상태라 후순위 유지)
 
 ## 모바일 다음 작업 (React Native + Expo)
@@ -190,8 +216,11 @@
    · 미착수: 바나바 아바타 아이콘(PNG 없음), `+` 첨부·`...` 메뉴는 표시만 하고 동작 없음
 2. [x] **로그인 플로우(화면+상태) — 2026-08-15 완료** (D-039). 실제 소셜 로그인은 범위 밖
    (개발 빌드 전환 선행 필요). 대화 이력 동기화는 D-024로 MVP 범위 밖 유지
-3. [ ] 오늘의 말씀 푸시 알림 (수신 동의 기반)
-4. [ ] 스토어 제출 준비: 개인정보처리방침, AI 생성 콘텐츠 고지, 신고 버튼
+3. [x] **홈 화면 + 하단 탭 5개 + 마음기록·기도제목·보관함 — 2026-08-17 완료** (D-040·D-041).
+   말씀 탭은 스텁("준비 중"). 오늘의 말씀은 고정 문구 — 성경 DB 복구 완료 후 API 연동은 다음 세션.
+4. [ ] 오늘의 말씀 API 연동 (성경 DB 복구 완료 후) + 푸시 알림(수신 동의 기반)
+5. [ ] 말씀 탭 실제 기능(성경 검색 등)
+6. [ ] 스토어 제출 준비: 개인정보처리방침, AI 생성 콘텐츠 고지, 신고 버튼
    (앱 내 신고 → theology-checker 1차 분류 큐 연동)
 
 ## 사람 확인 필요 (블로킹)
@@ -258,12 +287,10 @@
   `IntentClassifier`가 자동 분류한다(6분류). 선택값을 `ChatRequest`에 실을지, 싣는다면 자동
   분류보다 우선할지 미정. **주의: 사용자가 고른 값이 위기 감지(1층)를 우회해선 안 된다**(절대원칙 5).
   현재는 셋 다 채팅 화면으로만 이동한다.
-- [ ] 🆕 **홈 화면 착수의 선행 결정 2건** (2026-08-03, D-036): 시안 01번을 그대로 만들려면 아래가 먼저다.
-  1. **하단 탭 5개(홈/말씀/바나바/보관함/나)** — 현재 라우팅은 `Stack`이고 "로그인→채팅 흐름이라
-     탭 아님"으로 정해져 있다(Phase 3 스캐폴딩). 탭 전환은 그 결정을 뒤집는 작업
-  2. **마음 기록·기도 제목·보관함** — 전부 영속 저장이 필요한데 **D-024가 MVP에서 대화 이력
-     DB 저장을 범위 밖으로 정해두었다.** 저장을 열면 민감정보 등급·미성년자 보호·사용자 권리
-     보장 의무가 새로 생긴다. 화면만 먼저 그리는 것은 가능
+- [x] ✅ **홈 화면 착수의 선행 결정 2건 — 2026-08-17 민규 확인 후 해소** (D-036 보류 1·2):
+  1. **하단 탭 5개 도입** → D-040. `app/(tabs)/` 그룹 신설, Stack "탭 아님" 결정을 뒤집음.
+  2. **마음 기록·기도 제목·보관함 실제 저장** → D-041. D-024를 뒤집는 게 아니라 "사용자가
+     명시적으로 저장을 누른 항목만" 남기는 옵트인 예외로 도입(전체 대화 자동 저장은 여전히 안 함).
 - [x] (2026-07-16 완료) CLAUDE.md 패키지 컨벤션 `webhook`→`api` 갱신. 컨트롤러·DTO는 `com.malssumbeot.api`
 - [x] (2026-07-14 완료) ANTHROPIC_API_KEY 발급·설정 + curl 스모크 테스트 성공.
   앱 통한 분류기 실호출 검증은 Phase 1 앱 실행 시
@@ -367,4 +394,6 @@ CLAUDE.md의 DoD 체크리스트 참조. 전부 충족 시 베타 배포 보고.
 | 2026-07-27 | **Phase 3 Expo 스캐폴딩 완료(D-028·D-029)**: `mobile/` 신규 — expo-router 파일 기반 라우팅 + Stack(로그인→채팅 흐름에 맞춰 탭 아님), 표시명 엠마오/번들ID `com.malssumbeot.emmaus`. **SDK 버전 이슈**: `create-expo-app@latest`가 갓 배포된 SDK 57을 잡아 폰 Expo Go(54.0.8)가 거부 → 56 단계 다운그레이드는 peer dependency 충돌(ERESOLVE)로 실패 → `expo-template-default@sdk-54`로 재생성해 해결(D-028, 개발 빌드 전환 시 최신으로 올릴 임시 조치). 검증: tsc 통과 / expo-doctor 18-18 / 안드로이드 번들 export 성공 / **민규 폰 Expo Go 실기동 확인**(D-027 게이트). iOS 하드 블로커 2건(애플 로그인 심사 필수·Windows라 iOS 실기 미검증) PROGRESS에 기록. 학습자료 14장 작성. 세션 시작 시 워킹카피가 머지된 구브랜치에 7커밋 뒤처져 있어 main 최신화 선행 | 완료 |
 | 2026-07-28 | **채팅 UI 뼈대 + 프롬프트 개편 + 설계 원칙 헌법 승격**: (1) `app/chat.tsx` — `@kesha-antonov/react-native-chat` 4.1.0(gifted-chat은 deprecated라 후속 패키지) 말풍선 렌더링 + 로컬 전송, 폰 실기동 확인. 네이티브 키보드 모듈이 Expo Go에서 동작해 개발 빌드 전환은 로그인 단계까지 미룸. (2) **프롬프트 개편 반영** — [사견 금지]→[출처 구분] 3층위, 말씀 녹임, 원문 무변경 규칙, 값싼 위로·결과 예측·번영신학·문맥 무시 인용 금지, 교단 중립 확장, 목회자 비판 금지의 피해 예외 신설, 1단계 제안을 위로·규정·서사 3종 5개로 확대. 신학 검사 1차 FAIL(critical) → 5건 수정 후 닫힘. 테스트 108건. (3) **설계 원칙 헌법 승격(D-031)** — 관통 원칙(금지 대신 검증된 재료 확대) + 3층 모델(안전/내용/표현), 변경은 사람 승인 항목. (4) **D-032** 오탐 비용을 "진짜일 때의 무력화"로 재정의. (5) 구조적 공백 발견·문서화: `crisis.txt` 데드코드, `때려치우` 학대 오탐, 정신건강 위기 미탐, `hasChapter` 미배선, 위기 응답 단일화. 브랜치 `feature/mobile-scaffolding` | 완료 |
 | 2026-08-03 | **채팅 UI 완성 (디자인 v1 반영)**: (1) **채팅 라이브러리 제거·직접 구현(D-033)** — 구절 카드를 붙이려다 라이브러리가 쓰는 기능이 텍스트 말풍선 하나뿐이고 정작 구절 카드는 어차피 직접 만들어야 함을 확인. `FlatList`(inverted)+말풍선+입력바로 재구성. 키보드 담당 패키지는 peer dep으로 이미 들어와 있어 그대로 승계. (2) **구절 인용 하이브리드 카드(D-034)** — 7/28에 정한 B안(주소만)을 폐기. 시안이 카드를 항상 펼친 형태로 그렸고 가이드 원칙 01도 "인용을 별도 카드와 출처로 구분"이라, 카드·출처는 항상 보이고 본문만 두 줄로 자르는 절충으로 확정. 성명표시권 표기 위치 문제(D-016)도 여기서 해결. (3) **키보드 회피 직접 제어(D-035)** — 입력창 과다 상승을 세 번 오진. 최종 원인은 `react-native`의 동명 `KeyboardAvoidingView`를 import한 것(`KeyboardProvider`가 안드로이드 창 축소를 가져가 계산 근거가 사라짐). `useReanimatedKeyboardAnimation` 높이로 하단 여백을 직접 만드는 방식으로 교체, 애니메이션 지연도 해소. (4) **디자인 v1 반영(D-036)** — 민규가 피그마로 직접 작업한 시안 5종을 `docs/design/`에 보존. 색 팔레트 확정, 커스텀 헤더·날짜 칩·테두리형 안내 문구·빠른 응답 칩·시안형 입력바. (5) **대화 진입 시트 신규**(`app/chat-entry.tsx`, 투명 모달 바텀시트). (6) 보류 기록: 하단 탭 5개는 Stack 유지 결정과, 마음 기록·기도 제목·보관함은 D-024(저장 범위 밖)와 충돌. 백엔드 무변경. 브랜치 `feature/verse-quote-rendering` | 완료 |
-| 2026-08-15 | **모바일 로그인 플로우(화면+상태) 완성(D-039)**: 채팅 화면이 매번 자체적으로 dev-token을 새로 받아 `useState`에만 두던 임시 상태(이전 세션 "서버 연결" 작업)를 정식 로그인 흐름으로 승격. `contexts/AuthContext.tsx` 신규(토큰을 `expo-secure-store`에 저장, React Context로 전역 공유) + `app/login.tsx` 신규("개발용으로 시작하기" 버튼) + `app/_layout.tsx`를 `Stack.Protected guard`로 재구성해 인증 여부에 따라 화면 그룹 자체를 분기. **디버깅**: 처음엔 `index.tsx`에서 렌더링 후 `<Redirect>`하는 방식으로 짰다가 "토큰은 정상 저장·복원되는데 재시작 시 로그인 화면이 다시 뜨는" 버그 발견 → 로그로 저장/복원 자체는 정상임을 먼저 확인한 뒤, Expo Router 공식 인증 가드 문서를 확인해 `Stack.Protected`로 교체해 해결. 폰 실기동으로 "완전 종료 후 재실행해도 로그인 유지" 확인 완료. 실제 구글/카카오 로그인(네이티브 SDK, 개발 빌드 전환 동반)은 범위 밖으로 명시적으로 미룸. 백엔드 무변경. 학습자료 16장 작성 예정. 브랜치는 민규가 직접 생성 | 완료 |
+| 2026-08-15 | **모바일 로그인 플로우(화면+상태) 완성(D-039)**: 채팅 화면이 매번 자체적으로 dev-token을 새로 받아 `useState`에만 두던 임시 상태(이전 세션 "서버 연결" 작업)를 정식 로그인 흐름으로 승격. `contexts/AuthContext.tsx` 신규(토큰을 `expo-secure-store`에 저장, React Context로 전역 공유) + `app/login.tsx` 신규("개발용으로 시작하기" 버튼) + `app/_layout.tsx`를 `Stack.Protected guard`로 재구성해 인증 여부에 따라 화면 그룹 자체를 분기. **디버깅**: 처음엔 `index.tsx`에서 렌더링 후 `<Redirect>`하는 방식으로 짰다가 "토큰은 정상 저장·복원되는데 재시작 시 로그인 화면이 다시 뜨는" 버그 발견 → 로그로 저장/복원 자체는 정상임을 먼저 확인한 뒤, Expo Router 공식 인증 가드 문서를 확인해 `Stack.Protected`로 교체해 해결. 폰 실기동으로 "완전 종료 후 재실행해도 로그인 유지" 확인 완료. 실제 구글/카카오 로그인(네이티브 SDK, 개발 빌드 전환 동반)은 범위 밖으로 명시적으로 미룸. 백엔드 무변경. 학습자료 16장 작성 완료. 브랜치는 민규가 직접 생성 | 완료 |
+| 2026-08-17 | **홈 화면 + 하단 탭 5개 + 마음기록·기도제목·보관함 3종 옵트인 저장(D-040·D-041)**: 시안대로 가려면 "Stack, 탭 아님"(Phase 3)과 D-024(대화 이력 미저장) 두 결정을 건드려야 해 민규에게 직접 확인 후 진행(전체 대화 자동 저장은 계속 안 함 — 사용자가 명시적으로 저장을 누른 항목만 예외). 백엔드: `com.malssumbeot.journal`(MindRecord/PrayerRequest, `V4`/`V5`)·`com.malssumbeot.archive`(ArchiveItem, `V6`, 검증된 원문을 JSON 스냅샷으로 저장) 신규 3종 리소스, `JwtAuthInterceptor`의 `authUserId`를 컨트롤러가 처음으로 실제 파싱해 쓰는 사례. 모바일: `app/(tabs)/` 그룹(홈/말씀/바나바/보관함/나, 바나바 탭은 `chat-entry`로 즉시 리다이렉트) + 홈 화면(기분 칩→마음기록 저장, 오늘의 말씀은 고정 문구) + 마음기록/기도제목 입력 모달 2종 + 보관함 목록 화면 + `chat.tsx`에 바나바 답변 북마크 버튼과 홈 복귀 버튼 추가(탭 밖 전체화면이라 되돌아갈 길이 새로 필요해짐), 헤더 "..." 임시 로그아웃은 "나" 탭으로 이동. `constants/colors.ts` 신규(새 화면 전용, 기존 `VerseQuote.tsx`는 안 건드림). 성경 DB 복구 스크래핑은 이 작업과 별도로 백그라운드 진행 중이라 오늘의 말씀 실제 연동은 다음 세션. 백엔드 테스트 9개 파일 신규 작성 | 완료 |
+| 2026-08-22 | **D-040·D-041 검증 마감**: `mvn clean test`로 백엔드 전체 139건 통과. Expo Router가 자동 생성한 라우트 타입이 8/17 신규 화면을 반영하지 않아 TypeScript 오류가 났으나, Expo 개발 서버를 한 번 시작해 `.expo/types/router.d.ts`를 재생성한 뒤 `npx tsc --noEmit` 통과. `npm run lint`도 통과. 학습자료 17장 작성. 애플리케이션 소스 수정 없음 | 완료 |
